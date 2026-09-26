@@ -1,0 +1,19 @@
+{
+  "name": "rami-coffee",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node api/index.js",
+    "dev": "node api/index.js",
+    "create-admin": "node create-admin.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1"
+  }
+}

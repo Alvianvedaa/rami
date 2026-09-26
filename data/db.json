@@ -1,0 +1,255 @@
+{
+  "products": [
+    {
+      "id": "p1790255334449",
+      "name": "Americano Ice - Reguler",
+      "cat": "kopi",
+      "desc": "",
+      "price": 17000,
+      "icon": "☕",
+      "image": "/uploads/product-1790255334432.jpg",
+      "olsera_sku": "SKU-P1790255334449",
+      "createdAt": "2026-09-24T13:08:54.450Z"
+    },
+    {
+      "id": "p1790255398688",
+      "name": "Americano Ice - Large",
+      "cat": "kopi",
+      "desc": "",
+      "price": 18000,
+      "icon": "☕",
+      "image": "/uploads/product-1790255398669.jpg",
+      "olsera_sku": "SKU-P1790255398688",
+      "createdAt": "2026-09-24T13:09:58.688Z"
+    },
+    {
+      "id": "p1790255445153",
+      "name": "Cappucino - Reguler",
+      "cat": "kopi",
+      "desc": "",
+      "price": 22000,
+      "icon": "☕",
+      "image": "/uploads/product-1790255445141.jpg",
+      "olsera_sku": "SKU-P1790255445153",
+      "createdAt": "2026-09-24T13:10:45.153Z"
+    },
+    {
+      "id": "p1790255470819",
+      "name": "Cappucino - Large",
+      "cat": "kopi",
+      "desc": "",
+      "price": 24000,
+      "icon": "☕",
+      "image": "/uploads/product-1790255470802.jpg",
+      "olsera_sku": "SKU-P1790255470819",
+      "createdAt": "2026-09-24T13:11:10.819Z",
+      "updatedAt": "2026-09-24T13:11:29.844Z"
+    },
+    {
+      "id": "p1790255644126",
+      "name": "Butterscotch Creamy Latte - Reguler",
+      "cat": "kopi",
+      "desc": "",
+      "price": 26000,
+      "icon": "☕",
+      "image": "/uploads/product-1790255644103.jpg",
+      "olsera_sku": "SKU-P1790255644126",
+      "createdAt": "2026-09-24T13:14:04.126Z",
+      "updatedAt": "2026-09-24T13:14:21.329Z"
+    },
+    {
+      "id": "p1790255694844",
+      "name": "Butterscotch Creamy Latte - Large",
+      "cat": "kopi",
+      "desc": "",
+      "price": 28000,
+      "icon": "☕",
+      "image": "/uploads/product-1790255694827.jpg",
+      "olsera_sku": "SKU-P1790255694844",
+      "createdAt": "2026-09-24T13:14:54.844Z"
+    },
+    {
+      "id": "p1790256192982",
+      "name": "Caramel Macchiato - Reguler",
+      "cat": "kopi",
+      "desc": "",
+      "price": 26000,
+      "icon": "☕",
+      "image": "/uploads/product-1790256192965.jpg",
+      "olsera_sku": "SKU-P1790256192982",
+      "createdAt": "2026-09-24T13:23:12.982Z"
+    },
+    {
+      "id": "p1790256208261",
+      "name": "Caramel Macchiato - Large",
+      "cat": "kopi",
+      "desc": "",
+      "price": 28000,
+      "icon": "☕",
+      "image": "/uploads/product-1790256208243.jpg",
+      "olsera_sku": "SKU-P1790256208261",
+      "createdAt": "2026-09-24T13:23:28.261Z",
+      "updatedAt": "2026-09-24T13:24:01.938Z"
+    },
+    {
+      "id": "p1790256296950",
+      "name": "Aren Latte - Reguler",
+      "cat": "kopi",
+      "desc": "",
+      "price": 21000,
+      "icon": "☕",
+      "image": "/uploads/product-1790256296933.jpg",
+      "olsera_sku": "SKU-P1790256296950",
+      "createdAt": "2026-09-24T13:24:56.950Z"
+    },
+    {
+      "id": "p1790256326659",
+      "name": "Aren Latte - Large",
+      "cat": "kopi",
+      "desc": "",
+      "price": 23000,
+      "icon": "☕",
+      "image": "/uploads/product-1790256326633.jpg",
+      "olsera_sku": "SKU-P1790256326659",
+      "createdAt": "2026-09-24T13:25:26.659Z"
+    },
+    {
+      "id": "p1790256393792",
+      "name": "Chocolate - Reguler",
+      "cat": "non-kopi",
+      "desc": "",
+      "price": 22000,
+      "icon": "🥐",
+      "image": "/uploads/product-1790256393772.jpg",
+      "olsera_sku": "SKU-P1790256393792",
+      "createdAt": "2026-09-24T13:26:33.792Z",
+      "updatedAt": "2026-09-24T13:27:03.395Z"
+    },
+    {
+      "id": "p1790256449386",
+      "name": "Chocolate - Large",
+      "cat": "non-kopi",
+      "desc": "",
+      "price": 24000,
+      "icon": "🥐",
+      "image": "/uploads/product-1790256449360.jpg",
+      "olsera_sku": "SKU-P1790256449386",
+      "createdAt": "2026-09-24T13:27:29.386Z"
+    },
+    {
+      "id": "p1790256655634",
+      "name": "Matcha - Reguler",
+      "cat": "non-kopi",
+      "desc": "",
+      "price": 22000,
+      "icon": "🥐",
+      "image": "/uploads/product-1790256655618.jpg",
+      "olsera_sku": "SKU-P1790256655634",
+      "createdAt": "2026-09-24T13:30:55.634Z"
+    },
+    {
+      "id": "p1790256681260",
+      "name": "Matcha - Large",
+      "cat": "non-kopi",
+      "desc": "",
+      "price": 24000,
+      "icon": "🥐",
+      "image": "/uploads/product-1790256681248.jpg",
+      "olsera_sku": "SKU-P1790256681260",
+      "createdAt": "2026-09-24T13:31:21.260Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "RAMI-1002",
+      "status": "synced",
+      "paymentStatus": "paid",
+      "createdAt": "2026-09-21T16:56:44.780Z",
+      "customer": {
+        "table": "Meja 3",
+        "name": "Test Customer",
+        "phone": "08123456789"
+      },
+      "fulfillment": "dine-in",
+      "paymentMethod": "QRIS",
+      "paidAt": "2026-09-21T16:56:44.780Z",
+      "items": [
+        {
+          "price": 23000,
+          "olsera_sku": "RAMI-KOPISUSU",
+          "name": "Kopi Susu Rami",
+          "id": "p1",
+          "qty": 2
+        }
+      ],
+      "subtotal": 46000,
+      "discount": 4600,
+      "promoCode": "RAMI10",
+      "tax": 4140,
+      "total": 45540,
+      "olseraOrderId": "OLS-MOCK-RAMI-1002",
+      "updatedAt": "2026-09-21T16:56:45.575Z"
+    },
+    {
+      "id": "RAMI-1001",
+      "status": "synced",
+      "paymentStatus": "paid",
+      "createdAt": "2026-09-20T22:32:58.669Z",
+      "customer": {
+        "name": "Customer Test",
+        "phone": "08123456789"
+      },
+      "fulfillment": "dine-in",
+      "paymentMethod": "QRIS",
+      "paidAt": "2026-09-20T22:32:58.668Z",
+      "items": [
+        {
+          "id": "p1",
+          "name": "Kopi Susu Rami",
+          "qty": 2,
+          "price": 23000,
+          "olsera_sku": "RAMI-KOPISUSU"
+        }
+      ],
+      "subtotal": 46000,
+      "discount": 4600,
+      "promoCode": "RAMI10",
+      "tax": 4140,
+      "total": 45540,
+      "olseraOrderId": "OLS-MOCK-RAMI-1001",
+      "updatedAt": "2026-09-20T22:32:59.213Z"
+    }
+  ],
+  "promos": [
+    {
+      "code": "RAMI10",
+      "type": "percent",
+      "value": 10,
+      "label": "Diskon 10%",
+      "active": false
+    },
+    {
+      "code": "RAMI20K",
+      "type": "fixed",
+      "value": 20000,
+      "label": "Potongan Rp 20.000",
+      "active": false
+    },
+    {
+      "code": "RAMIGRATIS",
+      "type": "fixed",
+      "value": 50000,
+      "label": "Potongan Rp 50.000",
+      "active": false
+    }
+  ],
+  "settings": {
+    "storeName": "Rami Coffee & Eatery",
+    "qrisImage": "/uploads/qris-static-1790256016268.jpg",
+    "merchantName": "RAMI CAFE",
+    "outletId": "OUTLET-001",
+    "olseraStatus": "Connected",
+    "taxPercent": 10
+  },
+  "counter": 1002
+}
