@@ -20,6 +20,8 @@ if (BASE_URL === 'https://api.olsera.co.id') BASE_URL = 'https://api-open.olsera
 BASE_URL = BASE_URL.replace(/\/+$/, '');
 
 const APP_ID = process.env.OLSERA_APP_ID || '';
+/* ID toko/outlet Olsera (store 773). Bisa ditimpa lewat env OLSERA_STORE_ID. */
+const STORE_ID = String(process.env.OLSERA_STORE_ID || '773');
 const SECRET_KEY = process.env.OLSERA_SECRET_KEY || process.env.OLSERA_API_KEY || 'secret';
 
 /* Endpoint */
@@ -325,7 +327,35 @@ async function mockSync(order) {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* UJI KONEKSI (dipakai tombol "Uji koneksi" di dashboard admin)        */
+/* ------------------------------------------------------------------ */
+function isConfigured() {
+  return Boolean(APP_ID) && Boolean(process.env.OLSERA_SECRET_KEY || process.env.OLSERA_API_KEY);
+}
+
+async function testConnection() {
+  const base = { storeId: STORE_ID, mock: MOCK_MODE, configured: isConfigured() };
+  if (MOCK_MODE) {
+    return { ...base, ok: false, message: 'Masih MOCK_MODE. Set env MOCK_MODE=false di Vercel lalu redeploy.' };
+  }
+  if (!base.configured) {
+    return { ...base, ok: false, message: 'OLSERA_APP_ID dan OLSERA_SECRET_KEY belum diisi di env Vercel.' };
+  }
+  try {
+    cachedToken = null; // paksa minta token baru agar benar-benar teruji
+    tokenExpiresAt = 0;
+    await getAccessToken();
+    return { ...base, ok: true, message: `Terhubung ke Olsera (store ${STORE_ID}).` };
+  } catch (err) {
+    return { ...base, ok: false, message: err.message };
+  }
+}
+
 module.exports = {
+  testConnection,
+  isConfigured,
+  getStoreId: () => STORE_ID,
   syncOrderToOlsera,
   addItemsToOlseraOrder,
   markOrderAsPaidInOlsera,
