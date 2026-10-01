@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Rami Cafe — Pesan Online & QRIS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
@@ -1145,6 +1145,177 @@
 
       .card-price {
         font-size: 0.95rem;
+      }
+    }
+
+    /* ===== Optimasi HP ===== */
+    html {
+      -webkit-text-size-adjust: 100%;
+    }
+
+    button {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    header.site-header {
+      padding-top: env(safe-area-inset-top, 0px);
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        padding: 0 14px;
+      }
+
+      .nav-bar {
+        height: 60px;
+      }
+
+      .brand-symbol {
+        width: 34px;
+        height: 34px;
+      }
+
+      .cart-toggle-btn {
+        padding: 10px 16px;
+      }
+
+      .hero-section {
+        padding: 20px 0 16px;
+      }
+
+      .hero-title {
+        font-size: 1.7rem;
+        line-height: 1.15;
+      }
+
+      .hero-desc {
+        font-size: 0.9rem;
+      }
+
+      /* Filter: cari di atas, kategori bisa digeser */
+      .filter-section {
+        top: calc(60px + env(safe-area-inset-top, 0px));
+        padding: 10px 0 8px;
+      }
+
+      .filter-bar {
+        gap: 10px;
+      }
+
+      .search-box {
+        order: -1;
+        flex: 1 1 100%;
+        min-width: 0;
+        max-width: none;
+      }
+
+      .category-tabs {
+        width: 100%;
+        margin: 0 -14px;
+        padding: 0 14px 4px;
+        width: calc(100% + 28px);
+      }
+
+      .cat-tab {
+        padding: 10px 16px;
+      }
+
+      /* Menu 2 kolom */
+      .catalog-section {
+        padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+      }
+
+      .menu-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .card-desc {
+        .card-desc {
+          max-height: 4.5em;
+          overflow: hidden;
+          font-size: 0.78rem;
+          margin-bottom: 10px;
+        }
+      }
+
+      .card-footer {
+        gap: 6px;
+      }
+
+      .btn-add-item {
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+      }
+
+      /* Keranjang layar penuh */
+      .cart-drawer {
+        width: 100%;
+        border-left: none;
+      }
+
+      .drawer-header {
+        padding: 16px;
+      }
+
+      .drawer-body {
+        padding: 12px 16px;
+      }
+
+      .drawer-footer {
+        padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+      }
+
+      .qty-btn {
+        width: 34px;
+        height: 34px;
+      }
+
+      .qty-number {
+        min-width: 24px;
+      }
+
+      /* Modal bisa di-scroll & tidak melebihi layar HP */
+      .modal-window {
+        max-height: 92vh;
+        max-height: 92dvh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+      }
+
+      .modal-close-btn {
+        width: 40px;
+        height: 40px;
+      }
+
+      /* 16px agar iPhone tidak zoom otomatis saat mengetik */
+      .search-box input,
+      .form-group input,
+      .form-group select,
+      .form-group textarea,
+      .modal-window input,
+      .cart-drawer input,
+      .cart-drawer textarea {
+        font-size: 16px;
+      }
+
+      .qris-card-box img,
+      #qrisImageDisplay {
+        max-width: 100%;
+        height: auto;
+      }
+    }
+
+    @media (max-width: 340px) {
+      .menu-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-title {
+        font-size: 1.45rem;
       }
     }
   </style>
