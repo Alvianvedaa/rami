@@ -903,18 +903,24 @@
       text-align: center;
     }
 
-    .qris-container .modal-close-btn {
+    /* Tombol × seragam di semua modal */
+    .modal-close-btn {
       top: 14px;
       right: 14px;
-      width: 34px;
-      height: 34px;
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
       background: var(--blush);
-      font-size: 1.4rem;
+      font-size: 1.5rem;
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 2;
+    }
+
+    /* Judul modal tidak tertimpa tombol × */
+    #checkoutModalOverlay .modal-window h3 {
+      padding-right: 44px;
     }
 
     .qris-container .qris-timer-chip {
@@ -1097,6 +1103,25 @@
     }
 
     @media (max-width: 640px) {
+      .modal-overlay {
+        padding: 12px;
+      }
+
+      .modal-window {
+        padding: 20px 16px;
+        max-height: 92vh;
+      }
+
+      .modal-window h3 {
+        font-size: 1.25rem;
+      }
+
+      .qris-container .qris-timer-chip {
+        margin-top: 2px;
+        max-width: calc(100% - 52px);
+        font-size: 0.78rem;
+      }
+
       .hero-content {
         padding: 24px 20px;
       }
@@ -1273,186 +1298,185 @@
   <!-- Modal: Pembayaran QRIS Statis -->
   <div class="modal-overlay" id="qrisModalOverlay">
     <div class="modal-window qris-container">
-      <div class="modal-window qris-container"></div>
       <button class="modal-close-btn" id="btnCloseQrisModal" aria-label="Kembali ke menu">&times;</button>
+
       <div class="qris-timer-chip">
-        <div class="qris-timer-chip">
-          <span>⏳ Selesaikan dalam:</span>
-          <strong id="qrisCountdownText">10:00</strong>
-        </div>
-
-        <h3 style="margin-bottom:4px;">Scan &amp; Bayar via GoPay / QRIS</h3>
-        <p class="sub" style="margin-bottom:14px;">Buka aplikasi GoPay, OVO, Dana, BCA, ShopeePay, atau m-Banking Anda.
-        </p>
-
-        <div class="qris-card-box">
-          <img id="qrisImageDisplay" src="qris.svg" alt="QRIS Rami Coffee"
-            onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=RAMI-COFFEE-QRIS-NOMINAL'">
-          <div class="qris-amount-display" id="qrisExactAmountText">Rp 0</div>
-          <button class="btn-copy-amount" id="btnCopyNominal">📋 Salin Nominal Persis</button>
-        </div>
-
-        <div class="qris-instruction">
-          <strong>Langkah Pembayaran:</strong>
-          <ol>
-            <li>Buka aplikasi e-Wallet atau m-Banking pilihan Anda.</li>
-            <li>Pilih menu <strong>Scan QR / QRIS</strong>.</li>
-            <li>Arahkan kamera ke QR Code di atas.</li>
-            <li>Masukkan nominal persis seperti angka di atas, lalu bayar.</li>
-            <li><strong>Pesanan otomatis terkonfirmasi</strong> setelah pembayaran berhasil.</li>
-          </ol>
-        </div>
-
-        <!-- Live Auto-Polling Status — tombol manual dihapus -->
-        <div class="qris-live-status-box" id="qrisLiveStatusBox">
-          <div class="qris-pulse-dot" id="qrisPulseDot">
-            <div class="ring"></div>
-            <div class="dot"></div>
-          </div>
-          <div class="qris-live-status-text">
-            <div id="qrisLiveStatusMain">Menunggu Pembayaran GoPay / QRIS...</div>
-            <div class="sub-text" id="qrisLiveStatusSub">Sistem memantau otomatis setiap 2,5 detik</div>
-          </div>
-        </div>
-
-        <button
-          style="background:none;border:none;color:var(--text-muted);font-size:0.82rem;margin-top:12px;cursor:pointer;text-decoration:underline;"
-          id="btnBackFromQrisModal">Ubah Metode Bayar</button>
+        <span>⏳ Selesaikan dalam:</span>
+        <strong id="qrisCountdownText">10:00</strong>
       </div>
+
+      <h3 style="margin-bottom:4px;">Scan &amp; Bayar via GoPay / QRIS</h3>
+      <p class="sub" style="margin-bottom:14px;">Buka aplikasi GoPay, OVO, Dana, BCA, ShopeePay, atau m-Banking Anda.
+      </p>
+
+      <div class="qris-card-box">
+        <img id="qrisImageDisplay" src="qris.svg" alt="QRIS Rami Coffee"
+          onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=RAMI-COFFEE-QRIS-NOMINAL'">
+        <div class="qris-amount-display" id="qrisExactAmountText">Rp 0</div>
+        <button class="btn-copy-amount" id="btnCopyNominal">📋 Salin Nominal Persis</button>
+      </div>
+
+      <div class="qris-instruction">
+        <strong>Langkah Pembayaran:</strong>
+        <ol>
+          <li>Buka aplikasi e-Wallet atau m-Banking pilihan Anda.</li>
+          <li>Pilih menu <strong>Scan QR / QRIS</strong>.</li>
+          <li>Arahkan kamera ke QR Code di atas.</li>
+          <li>Masukkan nominal persis seperti angka di atas, lalu bayar.</li>
+          <li><strong>Pesanan otomatis terkonfirmasi</strong> setelah pembayaran berhasil.</li>
+        </ol>
+      </div>
+
+      <!-- Live Auto-Polling Status -->
+      <div class="qris-live-status-box" id="qrisLiveStatusBox">
+        <div class="qris-pulse-dot" id="qrisPulseDot">
+          <div class="ring"></div>
+          <div class="dot"></div>
+        </div>
+        <div class="qris-live-status-text">
+          <div id="qrisLiveStatusMain">Menunggu Pembayaran GoPay / QRIS...</div>
+          <div class="sub-text" id="qrisLiveStatusSub">Sistem memantau otomatis setiap 2,5 detik</div>
+        </div>
+      </div>
+
+      <button
+        style="background:none;border:none;color:var(--text-muted);font-size:0.82rem;margin-top:12px;cursor:pointer;text-decoration:underline;"
+        id="btnBackFromQrisModal">Ubah Metode Bayar</button>
     </div>
+  </div>
 
-    <!-- Modal: Konfirmasi Berhasil & Struk -->
-    <div class="modal-overlay" id="successModalOverlay">
-      <div class="modal-window" style="text-align:center;">
-        <div class="success-icon">✓</div>
-        <h3>Pesanan Berhasil Masuk!</h3>
-        <p class="sub" id="successSubMessage">Terima kasih atas pesananmu. Barista kami siap meracik pesanan.</p>
+  <!-- Modal: Konfirmasi Berhasil & Struk -->
+  <div class="modal-overlay" id="successModalOverlay">
+    <div class="modal-window" style="text-align:center;">
+      <div class="success-icon">✓</div>
+      <h3>Pesanan Berhasil Masuk!</h3>
+      <p class="sub" id="successSubMessage">Terima kasih atas pesananmu. Barista kami siap meracik pesanan.</p>
 
-        <div class="mini-receipt" id="successReceiptDetails" style="text-align:left;"></div>
+      <div class="mini-receipt" id="successReceiptDetails" style="text-align:left;"></div>
 
-        <button class="btn-checkout" id="btnFinishOrderReturn" style="margin-top:10px;">Selesai &amp; Kembali ke
-          Menu</button>
-      </div>
+      <button class="btn-checkout" id="btnFinishOrderReturn" style="margin-top:10px;">Selesai &amp; Kembali ke
+        Menu</button>
     </div>
+  </div>
 
-    <!-- Footer -->
-    <footer class="site-footer">
-      <div class="container">
-        <p>&copy; 2026 Rami Coffee &amp; Eatery &middot; Sistem Pesan Mandiri &amp; Kasir Olsera POS</p>
-      </div>
-    </footer>
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <p>&copy; 2026 Rami Coffee &amp; Eatery &middot; Sistem Pesan Mandiri &amp; Kasir Olsera POS</p>
+    </div>
+  </footer>
 
-    <script>
-      /* ------------------------------------------------------------- */
-      /* STATE & CONFIG                                                */
-      /* ------------------------------------------------------------- */
-      function getBackendUrl() {
-        const custom = localStorage.getItem('rami_backend_url');
-        if (custom && custom.trim()) return custom.trim().replace(/\/+$/, '');
-        if (window.location.protocol.startsWith('http')) return window.location.origin + '/api';
-        return 'http://localhost:4000/api';
-      }
-      let BACKEND_URL = getBackendUrl();
+  <script>
+    /* ------------------------------------------------------------- */
+    /* STATE & CONFIG                                                */
+    /* ------------------------------------------------------------- */
+    function getBackendUrl() {
+      const custom = localStorage.getItem('rami_backend_url');
+      if (custom && custom.trim()) return custom.trim().replace(/\/+$/, '');
+      if (window.location.protocol.startsWith('http')) return window.location.origin + '/api';
+      return 'http://localhost:4000/api';
+    }
+    let BACKEND_URL = getBackendUrl();
 
-      // Fallback jika server backend belum di-start
-      const FALLBACK_PRODUCTS = [
-        { id: 'p1', cat: 'kopi', name: 'Kopi Susu Rami', desc: 'Espresso house-blend, gula aren asli, susu segar.', price: 22000, icon: '☕', image: '' },
-        { id: 'p2', cat: 'kopi', name: 'Americano', desc: 'Espresso ganda, air panas, disajikan panas atau dingin.', price: 18000, icon: '☕', image: '' },
-        { id: 'p3', cat: 'kopi', name: 'Cappuccino', desc: 'Espresso, susu steam, foam tebal lembut.', price: 24000, icon: '☕', image: '' },
-        { id: 'p4', cat: 'non-kopi', name: 'Matcha Latte', desc: 'Matcha grade seremonial Jepang, susu segar.', price: 26000, icon: '🍵', image: '' },
-        { id: 'p5', cat: 'non-kopi', name: 'Rami Choco Milk', desc: 'Cokelat Belgia premium, whipped cream tipis.', price: 25000, icon: '🍫', image: '' },
-        { id: 'p6', cat: 'non-kopi', name: 'Lychee Rose Tea', desc: 'Teh dingin segar, sirup leci, kelopak mawar.', price: 21000, icon: '🌸', image: '' },
-        { id: 'p7', cat: 'makanan', name: 'Croffle Original', desc: 'Croissant-waffle renyah harum mentega, gula halus.', price: 28000, icon: '🥐', image: '' },
-        { id: 'p8', cat: 'makanan', name: 'Nasi Goreng Rami', desc: 'Nasi goreng resep rumahan khas Rami, telur ceplok.', price: 32000, icon: '🍚', image: '' },
-        { id: 'p9', cat: 'makanan', name: 'Chicken Katsu Rice', desc: 'Katsu ayam renyah, saus gurih, nasi hangat.', price: 35000, icon: '🍗', image: '' },
-        { id: 'p10', cat: 'pastry', name: 'Butter Croissant', desc: 'Dipanggang fresh setiap pagi, flaky dan buttery.', price: 19000, icon: '🥐', image: '' },
-        { id: 'p11', cat: 'pastry', name: 'Strawberry Shortcake Slice', desc: 'Sponge lembut vanilla, fresh cream, stroberi manis.', price: 23000, icon: '🍓', image: '' },
-        { id: 'p12', cat: 'pastry', name: 'Cheese Tart', desc: 'Krim keju lumer, pastry crust renyah.', price: 21000, icon: '🧀', image: '' },
-      ];
+    // Fallback jika server backend belum di-start
+    const FALLBACK_PRODUCTS = [
+      { id: 'p1', cat: 'kopi', name: 'Kopi Susu Rami', desc: 'Espresso house-blend, gula aren asli, susu segar.', price: 22000, icon: '☕', image: '' },
+      { id: 'p2', cat: 'kopi', name: 'Americano', desc: 'Espresso ganda, air panas, disajikan panas atau dingin.', price: 18000, icon: '☕', image: '' },
+      { id: 'p3', cat: 'kopi', name: 'Cappuccino', desc: 'Espresso, susu steam, foam tebal lembut.', price: 24000, icon: '☕', image: '' },
+      { id: 'p4', cat: 'non-kopi', name: 'Matcha Latte', desc: 'Matcha grade seremonial Jepang, susu segar.', price: 26000, icon: '🍵', image: '' },
+      { id: 'p5', cat: 'non-kopi', name: 'Rami Choco Milk', desc: 'Cokelat Belgia premium, whipped cream tipis.', price: 25000, icon: '🍫', image: '' },
+      { id: 'p6', cat: 'non-kopi', name: 'Lychee Rose Tea', desc: 'Teh dingin segar, sirup leci, kelopak mawar.', price: 21000, icon: '🌸', image: '' },
+      { id: 'p7', cat: 'makanan', name: 'Croffle Original', desc: 'Croissant-waffle renyah harum mentega, gula halus.', price: 28000, icon: '🥐', image: '' },
+      { id: 'p8', cat: 'makanan', name: 'Nasi Goreng Rami', desc: 'Nasi goreng resep rumahan khas Rami, telur ceplok.', price: 32000, icon: '🍚', image: '' },
+      { id: 'p9', cat: 'makanan', name: 'Chicken Katsu Rice', desc: 'Katsu ayam renyah, saus gurih, nasi hangat.', price: 35000, icon: '🍗', image: '' },
+      { id: 'p10', cat: 'pastry', name: 'Butter Croissant', desc: 'Dipanggang fresh setiap pagi, flaky dan buttery.', price: 19000, icon: '🥐', image: '' },
+      { id: 'p11', cat: 'pastry', name: 'Strawberry Shortcake Slice', desc: 'Sponge lembut vanilla, fresh cream, stroberi manis.', price: 23000, icon: '🍓', image: '' },
+      { id: 'p12', cat: 'pastry', name: 'Cheese Tart', desc: 'Krim keju lumer, pastry crust renyah.', price: 21000, icon: '🧀', image: '' },
+    ];
 
-      let products = [];
-      let cart = {};
-      let activeCategory = 'semua';
-      let appliedPromo = null;
-      let settings = { qrisImage: 'qris.svg', merchantName: 'RAMI COFFEE & EATERY', taxPercent: 10 };
-      let currentFulfillment = 'dine-in';
-      let qrisCountdownInterval = null;
+    let products = [];
+    let cart = {};
+    let activeCategory = 'semua';
+    let appliedPromo = null;
+    let settings = { qrisImage: 'qris.svg', merchantName: 'RAMI COFFEE & EATERY', taxPercent: 10 };
+    let currentFulfillment = 'dine-in';
+    let qrisCountdownInterval = null;
 
-      const fmt = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+    const fmt = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
-      /* ------------------------------------------------------------- */
-      /* SYNC DATA DARI BACKEND                                        */
-      /* ------------------------------------------------------------- */
-      async function loadStorefrontData() {
-        try {
-          const pRes = await fetch(`${BACKEND_URL}/products`);
-          if (pRes.ok) {
-            const data = await pRes.json();
-            if (Array.isArray(data.products) && data.products.length > 0) {
-              products = data.products;
-            }
+    /* ------------------------------------------------------------- */
+    /* SYNC DATA DARI BACKEND                                        */
+    /* ------------------------------------------------------------- */
+    async function loadStorefrontData() {
+      try {
+        const pRes = await fetch(`${BACKEND_URL}/products`);
+        if (pRes.ok) {
+          const data = await pRes.json();
+          if (Array.isArray(data.products) && data.products.length > 0) {
+            products = data.products;
           }
-        } catch (e) {
-          products = [];
-          console.error('Gagal mengambil menu dari Supabase melalui backend:', e);
         }
-
-        try {
-          const sRes = await fetch(`${BACKEND_URL}/settings`);
-          if (sRes.ok) {
-            const sData = await sRes.json();
-            if (sData.settings) {
-              settings = Object.assign(settings, sData.settings);
-              if (settings.qrisImage) {
-                document.getElementById('qrisImageDisplay').src = settings.qrisImage;
-              }
-            }
-          }
-        } catch (e) { }
-
-        renderMenu();
-        renderCart();
+      } catch (e) {
+        products = [];
+        console.error('Gagal mengambil menu dari Supabase melalui backend:', e);
       }
 
-      /* ------------------------------------------------------------- */
-      /* MENU CATALOG RENDERING & FILTERING                            */
-      /* ------------------------------------------------------------- */
-      const menuGrid = document.getElementById('menuGrid');
-      const menuSearchInput = document.getElementById('menuSearchInput');
+      try {
+        const sRes = await fetch(`${BACKEND_URL}/settings`);
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          if (sData.settings) {
+            settings = Object.assign(settings, sData.settings);
+            if (settings.qrisImage) {
+              document.getElementById('qrisImageDisplay').src = settings.qrisImage;
+            }
+          }
+        }
+      } catch (e) { }
 
-      function renderMenu() {
-        menuGrid.innerHTML = '';
-        const query = menuSearchInput.value.trim().toLowerCase();
+      renderMenu();
+      renderCart();
+    }
 
-        const filtered = products.filter(p => {
-          const matchCat = activeCategory === 'semua' || p.cat === activeCategory;
-          const matchQuery = !query || p.name.toLowerCase().includes(query) || (p.desc && p.desc.toLowerCase().includes(query));
-          return matchCat && matchQuery;
-        });
+    /* ------------------------------------------------------------- */
+    /* MENU CATALOG RENDERING & FILTERING                            */
+    /* ------------------------------------------------------------- */
+    const menuGrid = document.getElementById('menuGrid');
+    const menuSearchInput = document.getElementById('menuSearchInput');
 
-        if (filtered.length === 0) {
-          menuGrid.innerHTML = `
+    function renderMenu() {
+      menuGrid.innerHTML = '';
+      const query = menuSearchInput.value.trim().toLowerCase();
+
+      const filtered = products.filter(p => {
+        const matchCat = activeCategory === 'semua' || p.cat === activeCategory;
+        const matchQuery = !query || p.name.toLowerCase().includes(query) || (p.desc && p.desc.toLowerCase().includes(query));
+        return matchCat && matchQuery;
+      });
+
+      if (filtered.length === 0) {
+        menuGrid.innerHTML = `
       <div style="grid-column: 1 / -1; text-align:center; padding:50px 20px; color:var(--text-muted);">
         <div style="font-size:2rem; margin-bottom:8px;">🔍</div>
         <p style="font-weight:600;">Menu yang kamu cari tidak ditemukan.</p>
         <p style="font-size:0.8rem; margin-top:4px;">Coba gunakan kata kunci lain atau pilih kategori Semua Menu.</p>
       </div>
     `;
-          return;
+        return;
+      }
+
+      filtered.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'menu-card';
+
+        let mediaContent = '';
+        if (p.image) {
+          mediaContent = `<img src="${p.image}" alt="${p.name}" loading="lazy" onerror="this.remove()">`;
+        } else {
+          mediaContent = p.icon || '☕';
         }
 
-        filtered.forEach(p => {
-          const card = document.createElement('div');
-          card.className = 'menu-card';
-
-          let mediaContent = '';
-          if (p.image) {
-            mediaContent = `<img src="${p.image}" alt="${p.name}" loading="lazy" onerror="this.remove()">`;
-          } else {
-            mediaContent = p.icon || '☕';
-          }
-
-          card.innerHTML = `
+        card.innerHTML = `
       <div class="card-image-wrap">
         ${mediaContent}
         <span class="card-cat-badge">${p.cat || 'Menu'}</span>
@@ -1466,122 +1490,122 @@
         </div>
       </div>
     `;
-          menuGrid.appendChild(card);
-        });
-
-        menuGrid.querySelectorAll('.btn-add-item').forEach(btn => {
-          btn.onclick = () => {
-            addToCart(btn.dataset.id);
-            animateBtn(btn);
-          };
-        });
-      }
-
-      function animateBtn(btn) {
-        btn.style.transform = 'scale(0.82)';
-        setTimeout(() => btn.style.transform = '', 140);
-      }
-
-      document.querySelectorAll('#catTabsContainer .cat-tab').forEach(tab => {
-        tab.onclick = () => {
-          document.querySelectorAll('#catTabsContainer .cat-tab').forEach(t => t.classList.remove('active'));
-          tab.classList.add('active');
-          activeCategory = tab.dataset.cat;
-          renderMenu();
-        };
+        menuGrid.appendChild(card);
       });
 
-      menuSearchInput.oninput = renderMenu;
-
-      /* ------------------------------------------------------------- */
-      /* CART & PROMO CODE LOGIC                                       */
-      /* ------------------------------------------------------------- */
-      function addToCart(id) {
-        cart[id] = (cart[id] || 0) + 1;
-        renderCart();
-
-        if (window.innerWidth < 768 && Object.keys(cart).length === 1) {
-          openDrawer();
-        }
-      }
-
-      function changeQty(id, delta) {
-        cart[id] = (cart[id] || 0) + delta;
-        if (cart[id] <= 0) delete cart[id];
-        renderCart();
-      }
-
-      function getCartItems() {
-        return Object.entries(cart).map(([id, qty]) => {
-          const product = products.find(p => p.id === id) || {
-            id,
-            name: 'Menu',
-            price: 0,
-            icon: '☕'
-          };
-          return { product, qty };
-        });
-      }
-
-      function calcTotals() {
-        const items = getCartItems();
-        const subtotal = items.reduce((sum, item) => sum + item.product.price * item.qty, 0);
-
-        let discount = 0;
-
-        if (appliedPromo) {
-          if (appliedPromo.type === 'percent') {
-            discount = Math.round((subtotal * appliedPromo.value) / 100);
-          } else {
-            discount = Math.min(appliedPromo.value, subtotal);
-          }
-          if (appliedPromo.maxDiscount != null) {
-            discount = Math.min(discount, Number(appliedPromo.maxDiscount));
-          }
-          discount = Math.max(0, Math.min(discount, subtotal));
-        }
-
-        const taxableAmount = Math.max(0, subtotal - discount);
-        const taxRate = (Number(settings.taxPercent) || 10) / 100;
-        const tax = Math.round(taxableAmount * taxRate);
-        const grandTotal = taxableAmount + tax;
-
-        return {
-          items,
-          subtotal,
-          discount,
-          taxableAmount,
-          tax,
-          grandTotal
+      menuGrid.querySelectorAll('.btn-add-item').forEach(btn => {
+        btn.onclick = () => {
+          addToCart(btn.dataset.id);
+          animateBtn(btn);
         };
+      });
+    }
+
+    function animateBtn(btn) {
+      btn.style.transform = 'scale(0.82)';
+      setTimeout(() => btn.style.transform = '', 140);
+    }
+
+    document.querySelectorAll('#catTabsContainer .cat-tab').forEach(tab => {
+      tab.onclick = () => {
+        document.querySelectorAll('#catTabsContainer .cat-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeCategory = tab.dataset.cat;
+        renderMenu();
+      };
+    });
+
+    menuSearchInput.oninput = renderMenu;
+
+    /* ------------------------------------------------------------- */
+    /* CART & PROMO CODE LOGIC                                       */
+    /* ------------------------------------------------------------- */
+    function addToCart(id) {
+      cart[id] = (cart[id] || 0) + 1;
+      renderCart();
+
+      if (window.innerWidth < 768 && Object.keys(cart).length === 1) {
+        openDrawer();
+      }
+    }
+
+    function changeQty(id, delta) {
+      cart[id] = (cart[id] || 0) + delta;
+      if (cart[id] <= 0) delete cart[id];
+      renderCart();
+    }
+
+    function getCartItems() {
+      return Object.entries(cart).map(([id, qty]) => {
+        const product = products.find(p => p.id === id) || {
+          id,
+          name: 'Menu',
+          price: 0,
+          icon: '☕'
+        };
+        return { product, qty };
+      });
+    }
+
+    function calcTotals() {
+      const items = getCartItems();
+      const subtotal = items.reduce((sum, item) => sum + item.product.price * item.qty, 0);
+
+      let discount = 0;
+
+      if (appliedPromo) {
+        if (appliedPromo.type === 'percent') {
+          discount = Math.round((subtotal * appliedPromo.value) / 100);
+        } else {
+          discount = Math.min(appliedPromo.value, subtotal);
+        }
+        if (appliedPromo.maxDiscount != null) {
+          discount = Math.min(discount, Number(appliedPromo.maxDiscount));
+        }
+        discount = Math.max(0, Math.min(discount, subtotal));
       }
 
-      function renderCart() {
-        const {
-          items,
-          subtotal,
-          discount,
-          tax,
-          grandTotal
-        } = calcTotals();
+      const taxableAmount = Math.max(0, subtotal - discount);
+      const taxRate = (Number(settings.taxPercent) || 10) / 100;
+      const tax = Math.round(taxableAmount * taxRate);
+      const grandTotal = taxableAmount + tax;
 
-        const totalCount = items.reduce((sum, i) => sum + i.qty, 0);
+      return {
+        items,
+        subtotal,
+        discount,
+        taxableAmount,
+        tax,
+        grandTotal
+      };
+    }
 
-        document.getElementById('cartCountBadge').textContent = totalCount;
-        document.getElementById('btnOpenCheckoutModal').disabled = totalCount === 0;
+    function renderCart() {
+      const {
+        items,
+        subtotal,
+        discount,
+        tax,
+        grandTotal
+      } = calcTotals();
 
-        const itemsListEl = document.getElementById('cartItemsList');
+      const totalCount = items.reduce((sum, i) => sum + i.qty, 0);
 
-        if (items.length === 0) {
-          itemsListEl.innerHTML = `
+      document.getElementById('cartCountBadge').textContent = totalCount;
+      document.getElementById('btnOpenCheckoutModal').disabled = totalCount === 0;
+
+      const itemsListEl = document.getElementById('cartItemsList');
+
+      if (items.length === 0) {
+        itemsListEl.innerHTML = `
       <div class="cart-empty-message">
         <div style="font-size:2.5rem;margin-bottom:8px;">🛒</div>
         <strong>Keranjang belanjamu kosong</strong>
         <p>Silakan pilih menu kopi atau makanan favoritmu.</p>
       </div>
     `;
-        } else {
-          itemsListEl.innerHTML = items.map(l => `
+      } else {
+        itemsListEl.innerHTML = items.map(l => `
       <div class="cart-item-row">
         <div class="cart-item-thumb">
           ${l.product.image ? `<img src="${l.product.image}" alt="${l.product.name}">` : (l.product.icon || '☕')}
@@ -1598,177 +1622,177 @@
       </div>
     `).join('');
 
-          itemsListEl.querySelectorAll('.btn-minus').forEach(b => {
-            b.onclick = () => changeQty(b.dataset.id, -1);
-          });
+        itemsListEl.querySelectorAll('.btn-minus').forEach(b => {
+          b.onclick = () => changeQty(b.dataset.id, -1);
+        });
 
-          itemsListEl.querySelectorAll('.btn-plus').forEach(b => {
-            b.onclick = () => changeQty(b.dataset.id, 1);
-          });
-        }
-
-        document.getElementById('subtotalText').textContent = fmt(subtotal);
-
-        const discountLine = document.getElementById('discountLine');
-
-        if (discount > 0) {
-          discountLine.style.display = 'flex';
-
-          document.getElementById('discountLabelText').textContent =
-            appliedPromo ? `Diskon (${appliedPromo.code})` : 'Diskon Promo';
-
-          document.getElementById('discountAmountText').textContent =
-            '- ' + fmt(discount);
-        } else {
-          discountLine.style.display = 'none';
-        }
-
-        document.getElementById('taxText').textContent = fmt(tax);
-        document.getElementById('grandTotalText').textContent = fmt(grandTotal);
+        itemsListEl.querySelectorAll('.btn-plus').forEach(b => {
+          b.onclick = () => changeQty(b.dataset.id, 1);
+        });
       }
 
-      /* Promo Code Apply */
-      const promoCodeInput = document.getElementById('promoCodeInput');
-      const btnApplyPromo = document.getElementById('btnApplyPromo');
-      const promoFeedbackMsg = document.getElementById('promoFeedbackMsg');
+      document.getElementById('subtotalText').textContent = fmt(subtotal);
 
-      btnApplyPromo.onclick = async () => {
-        const code = promoCodeInput.value.trim().toUpperCase();
+      const discountLine = document.getElementById('discountLine');
 
-        if (!code) return;
+      if (discount > 0) {
+        discountLine.style.display = 'flex';
 
-        const { subtotal } = calcTotals();
+        document.getElementById('discountLabelText').textContent =
+          appliedPromo ? `Diskon (${appliedPromo.code})` : 'Diskon Promo';
 
-        if (subtotal <= 0) {
-          promoFeedbackMsg.innerHTML =
-            `<span class="promo-status-msg err">Tambahkan menu ke keranjang sebelum menggunakan promo.</span>`;
+        document.getElementById('discountAmountText').textContent =
+          '- ' + fmt(discount);
+      } else {
+        discountLine.style.display = 'none';
+      }
+
+      document.getElementById('taxText').textContent = fmt(tax);
+      document.getElementById('grandTotalText').textContent = fmt(grandTotal);
+    }
+
+    /* Promo Code Apply */
+    const promoCodeInput = document.getElementById('promoCodeInput');
+    const btnApplyPromo = document.getElementById('btnApplyPromo');
+    const promoFeedbackMsg = document.getElementById('promoFeedbackMsg');
+
+    btnApplyPromo.onclick = async () => {
+      const code = promoCodeInput.value.trim().toUpperCase();
+
+      if (!code) return;
+
+      const { subtotal } = calcTotals();
+
+      if (subtotal <= 0) {
+        promoFeedbackMsg.innerHTML =
+          `<span class="promo-status-msg err">Tambahkan menu ke keranjang sebelum menggunakan promo.</span>`;
+        return;
+      }
+
+      try {
+        const res = await fetch(`${BACKEND_URL}/promos/validate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            code,
+            subtotal
+          })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.valid) {
+          applyPromoSuccess(data.promo);
           return;
         }
+        promoFeedbackMsg.innerHTML =
+          `<span class="promo-status-msg err">✗ ${data.message || 'Kode promo tidak valid atau kadaluarsa.'}</span>`;
+      } catch (e) {
+        promoFeedbackMsg.innerHTML =
+          '<span class="promo-status-msg err">Tidak dapat menghubungi server. Coba lagi.</span>';
+      }
+    };
 
-        try {
-          const res = await fetch(`${BACKEND_URL}/promos/validate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              code,
-              subtotal
-            })
-          });
+    promoCodeInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') btnApplyPromo.click();
+    });
 
-          const data = await res.json();
+    function applyPromoSuccess(promoData) {
+      appliedPromo = promoData;
+      promoCodeInput.value = promoData.code;
+      promoCodeInput.disabled = true;
+      btnApplyPromo.disabled = true;
 
-          if (res.ok && data.valid) {
-            applyPromoSuccess(data.promo);
-            return;
-          }
-          promoFeedbackMsg.innerHTML =
-            `<span class="promo-status-msg err">✗ ${data.message || 'Kode promo tidak valid atau kadaluarsa.'}</span>`;
-        } catch (e) {
-          promoFeedbackMsg.innerHTML =
-            '<span class="promo-status-msg err">Tidak dapat menghubungi server. Coba lagi.</span>';
-        }
-      };
-
-      promoCodeInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter') btnApplyPromo.click();
-      });
-
-      function applyPromoSuccess(promoData) {
-        appliedPromo = promoData;
-        promoCodeInput.value = promoData.code;
-        promoCodeInput.disabled = true;
-        btnApplyPromo.disabled = true;
-
-        promoFeedbackMsg.innerHTML = `
+      promoFeedbackMsg.innerHTML = `
     <span class="promo-status-msg ok">
       ✓ ${promoData.label} berhasil diterapkan!
       <button class="btn-remove-promo" id="btnRemovePromo">Hapus</button>
     </span>
   `;
 
-        document.getElementById('btnRemovePromo').onclick = removePromo;
+      document.getElementById('btnRemovePromo').onclick = removePromo;
 
-        renderCart();
-      }
+      renderCart();
+    }
 
-      function removePromo() {
-        appliedPromo = null;
-        promoCodeInput.value = '';
-        promoCodeInput.disabled = false;
-        btnApplyPromo.disabled = false;
-        promoFeedbackMsg.innerHTML = '';
+    function removePromo() {
+      appliedPromo = null;
+      promoCodeInput.value = '';
+      promoCodeInput.disabled = false;
+      btnApplyPromo.disabled = false;
+      promoFeedbackMsg.innerHTML = '';
 
-        renderCart();
-      }
+      renderCart();
+    }
 
-      /* ------------------------------------------------------------- */
-      /* CART DRAWER OPEN / CLOSE                                      */
-      /* ------------------------------------------------------------- */
-      const drawerBackdrop = document.getElementById('drawerBackdrop');
-      const cartDrawer = document.getElementById('cartDrawer');
-      const openCartBtn = document.getElementById('openCartBtn');
-      const closeCartBtn = document.getElementById('closeCartBtn');
+    /* ------------------------------------------------------------- */
+    /* CART DRAWER OPEN / CLOSE                                      */
+    /* ------------------------------------------------------------- */
+    const drawerBackdrop = document.getElementById('drawerBackdrop');
+    const cartDrawer = document.getElementById('cartDrawer');
+    const openCartBtn = document.getElementById('openCartBtn');
+    const closeCartBtn = document.getElementById('closeCartBtn');
 
-      function openDrawer() {
-        drawerBackdrop.classList.add('open');
-        cartDrawer.classList.add('open');
-      }
+    function openDrawer() {
+      drawerBackdrop.classList.add('open');
+      cartDrawer.classList.add('open');
+    }
 
-      function closeDrawer() {
-        drawerBackdrop.classList.remove('open');
-        cartDrawer.classList.remove('open');
-      }
+    function closeDrawer() {
+      drawerBackdrop.classList.remove('open');
+      cartDrawer.classList.remove('open');
+    }
 
-      openCartBtn.onclick = openDrawer;
-      closeCartBtn.onclick = closeDrawer;
-      drawerBackdrop.onclick = closeDrawer;
+    openCartBtn.onclick = openDrawer;
+    closeCartBtn.onclick = closeDrawer;
+    drawerBackdrop.onclick = closeDrawer;
 
-      /* ------------------------------------------------------------- */
-      /* CHECKOUT FLOW & MODALS                                        */
-      /* ------------------------------------------------------------- */
-      const checkoutModalOverlay = document.getElementById('checkoutModalOverlay');
-      const btnOpenCheckoutModal = document.getElementById('btnOpenCheckoutModal');
-      const btnCloseCheckoutModal = document.getElementById('btnCloseCheckoutModal');
-      const optDineIn = document.getElementById('optDineIn');
-      const optPickup = document.getElementById('optPickup');
-      const tableGroup = document.getElementById('tableGroup');
-      const checkoutMiniReceipt = document.getElementById('checkoutMiniReceipt');
+    /* ------------------------------------------------------------- */
+    /* CHECKOUT FLOW & MODALS                                        */
+    /* ------------------------------------------------------------- */
+    const checkoutModalOverlay = document.getElementById('checkoutModalOverlay');
+    const btnOpenCheckoutModal = document.getElementById('btnOpenCheckoutModal');
+    const btnCloseCheckoutModal = document.getElementById('btnCloseCheckoutModal');
+    const optDineIn = document.getElementById('optDineIn');
+    const optPickup = document.getElementById('optPickup');
+    const tableGroup = document.getElementById('tableGroup');
+    const checkoutMiniReceipt = document.getElementById('checkoutMiniReceipt');
 
-      btnOpenCheckoutModal.onclick = () => {
-        closeDrawer();
-        renderMiniReceipt();
-        checkoutModalOverlay.classList.add('open');
-      };
+    btnOpenCheckoutModal.onclick = () => {
+      closeDrawer();
+      renderMiniReceipt();
+      checkoutModalOverlay.classList.add('open');
+    };
 
-      btnCloseCheckoutModal.onclick = () =>
-        checkoutModalOverlay.classList.remove('open');
+    btnCloseCheckoutModal.onclick = () =>
+      checkoutModalOverlay.classList.remove('open');
 
-      optDineIn.onclick = () => {
-        currentFulfillment = 'dine-in';
-        optDineIn.classList.add('active');
-        optPickup.classList.remove('active');
-        tableGroup.style.display = 'block';
-      };
+    optDineIn.onclick = () => {
+      currentFulfillment = 'dine-in';
+      optDineIn.classList.add('active');
+      optPickup.classList.remove('active');
+      tableGroup.style.display = 'block';
+    };
 
-      optPickup.onclick = () => {
-        currentFulfillment = 'pickup';
-        optPickup.classList.add('active');
-        optDineIn.classList.remove('active');
-        tableGroup.style.display = 'none';
-      };
+    optPickup.onclick = () => {
+      currentFulfillment = 'pickup';
+      optPickup.classList.add('active');
+      optDineIn.classList.remove('active');
+      tableGroup.style.display = 'none';
+    };
 
-      function renderMiniReceipt() {
-        const {
-          items,
-          subtotal,
-          discount,
-          tax,
-          grandTotal
-        } = calcTotals();
+    function renderMiniReceipt() {
+      const {
+        items,
+        subtotal,
+        discount,
+        tax,
+        grandTotal
+      } = calcTotals();
 
-        checkoutMiniReceipt.innerHTML = `
+      checkoutMiniReceipt.innerHTML = `
     <div style="font-weight:700;margin-bottom:6px;color:var(--espresso);">
       Ringkasan Item:
     </div>
@@ -1797,314 +1821,314 @@
       <span>${fmt(grandTotal)}</span>
     </div>
   `;
+    }
+
+    /* Proses Pembayaran Click */
+    let pendingOrderPayload = null;
+
+    document.getElementById('btnProceedPayment').onclick = () => {
+      const name = document.getElementById('inputCustName').value.trim();
+      const phone = document.getElementById('inputCustPhone').value.trim();
+      const tableNo = document.getElementById('inputTableNo').value.trim();
+      const payMethod = document.getElementById('selectPayMethod').value;
+
+      if (!name) {
+        alert('Silakan isi Nama Pemesan.');
+        document.getElementById('inputCustName').focus();
+        return;
       }
 
-      /* Proses Pembayaran Click */
-      let pendingOrderPayload = null;
+      if (currentFulfillment === 'dine-in' && !tableNo) {
+        alert('Silakan masukkan Nomor Meja Anda.');
+        document.getElementById('inputTableNo').focus();
+        return;
+      }
 
-      document.getElementById('btnProceedPayment').onclick = () => {
-        const name = document.getElementById('inputCustName').value.trim();
-        const phone = document.getElementById('inputCustPhone').value.trim();
-        const tableNo = document.getElementById('inputTableNo').value.trim();
-        const payMethod = document.getElementById('selectPayMethod').value;
+      const {
+        items,
+        subtotal,
+        discount,
+        tax,
+        grandTotal
+      } = calcTotals();
 
-        if (!name) {
-          alert('Silakan isi Nama Pemesan.');
-          document.getElementById('inputCustName').focus();
-          return;
-        }
+      pendingOrderPayload = {
+        customer: {
+          name,
+          phone: phone || null,
+          table: tableNo || null
+        },
 
-        if (currentFulfillment === 'dine-in' && !tableNo) {
-          alert('Silakan masukkan Nomor Meja Anda.');
-          document.getElementById('inputTableNo').focus();
-          return;
-        }
+        fulfillment: currentFulfillment,
+        paymentMethod: payMethod,
 
-        const {
-          items,
-          subtotal,
-          discount,
-          tax,
-          grandTotal
-        } = calcTotals();
+        items: items.map(l => ({
+          id: l.product.id,
+          name: l.product.name,
+          qty: l.qty,
+          price: l.product.price,
+          olsera_sku: l.product.olsera_sku
+        })),
 
-        pendingOrderPayload = {
-          customer: {
-            name,
-            phone: phone || null,
-            table: tableNo || null
-          },
-
-          fulfillment: currentFulfillment,
-          paymentMethod: payMethod,
-
-          items: items.map(l => ({
-            id: l.product.id,
-            name: l.product.name,
-            qty: l.qty,
-            price: l.product.price,
-            olsera_sku: l.product.olsera_sku
-          })),
-
-          subtotal,
-          discount,
-          promoCode: appliedPromo ? appliedPromo.code : null,
-          tax,
-          total: grandTotal
-        };
-
-        checkoutModalOverlay.classList.remove('open');
-
-        if (payMethod === 'QRIS') {
-          // Langsung POST order (unpaid), lalu tampilkan QRIS & mulai polling
-          openQrisModal(pendingOrderPayload);
-        } else {
-          submitFinalOrder(pendingOrderPayload, 'unpaid');
-        }
+        subtotal,
+        discount,
+        promoCode: appliedPromo ? appliedPromo.code : null,
+        tax,
+        total: grandTotal
       };
 
-      /* ------------------------------------------------------------- */
-      /* QRIS MODAL & AUTO-POLLING PEMBAYARAN GOPAY                    */
-      /* ------------------------------------------------------------- */
-      const qrisModalOverlay = document.getElementById('qrisModalOverlay');
-      const qrisExactAmountText = document.getElementById('qrisExactAmountText');
-      const qrisCountdownText = document.getElementById('qrisCountdownText');
+      checkoutModalOverlay.classList.remove('open');
 
-      let activeOrderId = null;        // ID order yang sedang menunggu pembayaran
-      let paymentPollInterval = null;  // Interval polling status pembayaran
-
-      /** Reset tampilan status polling ke kondisi awal (menunggu) */
-      function resetLiveStatusBox() {
-        const box = document.getElementById('qrisLiveStatusBox');
-        const dot = document.getElementById('qrisPulseDot');
-        const main = document.getElementById('qrisLiveStatusMain');
-        const sub = document.getElementById('qrisLiveStatusSub');
-        if (!box) return;
-        box.classList.remove('paid');
-        if (dot) dot.classList.remove('paid');
-        if (main) main.textContent = 'Menunggu Pembayaran GoPay / QRIS...';
-        if (sub) sub.textContent = 'Sistem memantau otomatis setiap 2,5 detik';
+      if (payMethod === 'QRIS') {
+        // Langsung POST order (unpaid), lalu tampilkan QRIS & mulai polling
+        openQrisModal(pendingOrderPayload);
+      } else {
+        submitFinalOrder(pendingOrderPayload, 'unpaid');
       }
+    };
 
-      /** Hentikan polling status pembayaran saja (countdown tetap jalan) */
-      function stopPaymentPoll() {
-        if (paymentPollInterval) {
-          clearInterval(paymentPollInterval);
-          paymentPollInterval = null;
-        }
+    /* ------------------------------------------------------------- */
+    /* QRIS MODAL & AUTO-POLLING PEMBAYARAN GOPAY                    */
+    /* ------------------------------------------------------------- */
+    const qrisModalOverlay = document.getElementById('qrisModalOverlay');
+    const qrisExactAmountText = document.getElementById('qrisExactAmountText');
+    const qrisCountdownText = document.getElementById('qrisCountdownText');
+
+    let activeOrderId = null;        // ID order yang sedang menunggu pembayaran
+    let paymentPollInterval = null;  // Interval polling status pembayaran
+
+    /** Reset tampilan status polling ke kondisi awal (menunggu) */
+    function resetLiveStatusBox() {
+      const box = document.getElementById('qrisLiveStatusBox');
+      const dot = document.getElementById('qrisPulseDot');
+      const main = document.getElementById('qrisLiveStatusMain');
+      const sub = document.getElementById('qrisLiveStatusSub');
+      if (!box) return;
+      box.classList.remove('paid');
+      if (dot) dot.classList.remove('paid');
+      if (main) main.textContent = 'Menunggu Pembayaran GoPay / QRIS...';
+      if (sub) sub.textContent = 'Sistem memantau otomatis setiap 2,5 detik';
+    }
+
+    /** Hentikan polling status pembayaran saja (countdown tetap jalan) */
+    function stopPaymentPoll() {
+      if (paymentPollInterval) {
+        clearInterval(paymentPollInterval);
+        paymentPollInterval = null;
       }
+    }
 
-      /** Hentikan countdown saja */
-      function stopCountdown() {
-        if (qrisCountdownInterval) {
-          clearInterval(qrisCountdownInterval);
-          qrisCountdownInterval = null;
-        }
+    /** Hentikan countdown saja */
+    function stopCountdown() {
+      if (qrisCountdownInterval) {
+        clearInterval(qrisCountdownInterval);
+        qrisCountdownInterval = null;
       }
+    }
 
-      /** Hentikan polling & countdown */
-      function stopPolling() {
-        stopPaymentPoll();
-        stopCountdown();
-      }
+    /** Hentikan polling & countdown */
+    function stopPolling() {
+      stopPaymentPoll();
+      stopCountdown();
+    }
 
-      /**
-       * Mulai polling status pembayaran ke backend setiap 2,5 detik.
-       * Jika sudah lunas, otomatis tutup modal & tampilkan success screen.
-       */
-      function pollPaymentStatus(orderId) {
-        stopPaymentPoll(); // pastikan tidak ada polling duplikat (countdown tidak ikut dimatikan)
+    /**
+     * Mulai polling status pembayaran ke backend setiap 2,5 detik.
+     * Jika sudah lunas, otomatis tutup modal & tampilkan success screen.
+     */
+    function pollPaymentStatus(orderId) {
+      stopPaymentPoll(); // pastikan tidak ada polling duplikat (countdown tidak ikut dimatikan)
 
-        paymentPollInterval = setInterval(async () => {
-          try {
-            const res = await fetch(`${BACKEND_URL}/orders/${encodeURIComponent(orderId)}/payment-status`);
-            if (!res.ok) return; // skip jika network error, coba lagi nanti
-
-            const data = await res.json();
-
-            if (data.paid === true) {
-              // === PEMBAYARAN BERHASIL ===
-              stopPolling();
-
-              // Update tampilan status box → sukses
-              const box = document.getElementById('qrisLiveStatusBox');
-              const dot = document.getElementById('qrisPulseDot');
-              const main = document.getElementById('qrisLiveStatusMain');
-              const sub = document.getElementById('qrisLiveStatusSub');
-              if (box) box.classList.add('paid');
-              if (dot) dot.classList.add('paid');
-              if (main) main.textContent = '✓ Pembayaran Berhasil Dikonfirmasi!';
-              if (sub) sub.textContent = 'Pesanan masuk ke kasir Olsera POS secara otomatis.';
-
-              // Tunggu sebentar agar pelanggan bisa melihat pesan sukses
-              await new Promise(r => setTimeout(r, 900));
-
-              // Tutup QRIS modal & tampilkan success screen
-              qrisModalOverlay.classList.remove('open');
-              showSuccessScreen(data.order, data.olsera);
-              resetCustomerState();
-            }
-          } catch (_err) {
-            // Abaikan error jaringan, coba lagi di interval berikutnya
-          }
-        }, 2500);
-      }
-
-      /**
-       * Buka QRIS modal:
-       * 1. POST order ke backend terlebih dahulu (status unpaid)
-       * 2. Tampilkan QR dari GoPay dynamic atau fallback statis
-       * 3. Mulai countdown & polling otomatis
-       */
-      async function openQrisModal(payload) {
-        // Tampilkan modal dulu agar user tidak bingung
-        resetLiveStatusBox();
-        qrisExactAmountText.textContent = fmt(payload.total);
-
-        // Tampilkan QR statis dulu sementara menunggu response server
-        const qrisImg = document.getElementById('qrisImageDisplay');
-        if (settings.qrisImage) {
-          qrisImg.src = settings.qrisImage;
-        } else {
-          qrisImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=RAMI-COFFEE-QRIS-${payload.total}`;
-        }
-
-        // Mulai countdown 10 menit (berbasis waktu akhir agar akurat sampai 00:00)
-        const endTime = Date.now() + 600 * 1000;
-        stopPolling();
-        const renderCountdown = () => {
-          const remainingSeconds = Math.max(0, Math.round((endTime - Date.now()) / 1000));
-          const m = Math.floor(remainingSeconds / 60);
-          const s = remainingSeconds % 60;
-          qrisCountdownText.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-          if (remainingSeconds <= 0) {
-            stopCountdown();
-            stopPaymentPoll();
-            qrisCountdownText.textContent = '00:00 - Kadaluarsa';
-          }
-        };
-        renderCountdown();
-        qrisCountdownInterval = setInterval(renderCountdown, 1000);
-
-        qrisModalOverlay.classList.add('open');
-
-        // === POST order ke server (QRIS selalu disimpan sebagai 'unpaid' di backend) ===
+      paymentPollInterval = setInterval(async () => {
         try {
-          const orderPayload = { ...payload, paymentStatus: 'unpaid' };
-          const res = await fetch(`${BACKEND_URL}/orders`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(orderPayload)
-          });
-          const data = await res.json();
-
-          if (!res.ok) {
-            throw new Error(data.error || 'Gagal menyimpan pesanan');
-          }
-
-          activeOrderId = data.order?.id;
-
-          // Jika backend mengembalikan dynamic QR dari GoPay, gunakan itu
-          if (data.qris?.qrUrl) {
-            qrisImg.src = data.qris.qrUrl;
-          }
-
-          // Mulai polling status pembayaran otomatis
-          if (activeOrderId) {
-            pollPaymentStatus(activeOrderId);
-          }
-        } catch (err) {
-          console.error('Gagal membuat order QRIS:', err);
-          stopPolling();
-          qrisModalOverlay.classList.remove('open');
-          checkoutModalOverlay.classList.add('open');
-          alert(`Gagal memproses pesanan: ${err.message || 'Server tidak dapat dihubungi'}. Silakan coba lagi.`);
-        }
-      }
-
-      document.getElementById('btnCopyNominal').onclick = () => {
-        if (pendingOrderPayload) {
-          navigator.clipboard.writeText(String(pendingOrderPayload.total));
-          alert(`Nominal ${fmt(pendingOrderPayload.total)} disalin ke clipboard!`);
-        }
-      };
-
-      /* Tanda silang: tutup layar pembayaran & kembali ke menu (keranjang tetap tersimpan) */
-      document.getElementById('btnCloseQrisModal').onclick = () => {
-        stopPolling();
-        activeOrderId = null;
-        qrisModalOverlay.classList.remove('open');
-        checkoutModalOverlay.classList.remove('open');
-      };
-
-      document.getElementById('btnBackFromQrisModal').onclick = () => {
-        stopPolling();
-        activeOrderId = null;
-        qrisModalOverlay.classList.remove('open');
-        checkoutModalOverlay.classList.add('open');
-      };
-
-      /* ------------------------------------------------------------- */
-      /* SUBMIT ORDER KE SERVER (Bayar di Kasir / non-QRIS)           */
-      /* ------------------------------------------------------------- */
-      async function submitFinalOrder(payload, paymentStatus) {
-        payload.paymentStatus = paymentStatus;
-
-        try {
-          const res = await fetch(`${BACKEND_URL}/orders`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
+          const res = await fetch(`${BACKEND_URL}/orders/${encodeURIComponent(orderId)}/payment-status`);
+          if (!res.ok) return; // skip jika network error, coba lagi nanti
 
           const data = await res.json();
 
-          if (res.ok) {
+          if (data.paid === true) {
+            // === PEMBAYARAN BERHASIL ===
+            stopPolling();
+
+            // Update tampilan status box → sukses
+            const box = document.getElementById('qrisLiveStatusBox');
+            const dot = document.getElementById('qrisPulseDot');
+            const main = document.getElementById('qrisLiveStatusMain');
+            const sub = document.getElementById('qrisLiveStatusSub');
+            if (box) box.classList.add('paid');
+            if (dot) dot.classList.add('paid');
+            if (main) main.textContent = '✓ Pembayaran Berhasil Dikonfirmasi!';
+            if (sub) sub.textContent = 'Pesanan masuk ke kasir Olsera POS secara otomatis.';
+
+            // Tunggu sebentar agar pelanggan bisa melihat pesan sukses
+            await new Promise(r => setTimeout(r, 900));
+
+            // Tutup QRIS modal & tampilkan success screen
+            qrisModalOverlay.classList.remove('open');
             showSuccessScreen(data.order, data.olsera);
             resetCustomerState();
-            return;
           }
-          throw new Error(data.error || 'Pesanan gagal disimpan');
-        } catch (err) {
-          console.error('Pesanan gagal disimpan:', err);
-          alert(`Pesanan belum tersimpan: ${err.message || 'server tidak dapat dihubungi'}. Silakan coba lagi.`);
+        } catch (_err) {
+          // Abaikan error jaringan, coba lagi di interval berikutnya
         }
+      }, 2500);
+    }
+
+    /**
+     * Buka QRIS modal:
+     * 1. POST order ke backend terlebih dahulu (status unpaid)
+     * 2. Tampilkan QR dari GoPay dynamic atau fallback statis
+     * 3. Mulai countdown & polling otomatis
+     */
+    async function openQrisModal(payload) {
+      // Tampilkan modal dulu agar user tidak bingung
+      resetLiveStatusBox();
+      qrisExactAmountText.textContent = fmt(payload.total);
+
+      // Tampilkan QR statis dulu sementara menunggu response server
+      const qrisImg = document.getElementById('qrisImageDisplay');
+      if (settings.qrisImage) {
+        qrisImg.src = settings.qrisImage;
+      } else {
+        qrisImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=RAMI-COFFEE-QRIS-${payload.total}`;
       }
 
-      function resetCustomerState() {
-        cart = {};
-        appliedPromo = null;
-        activeOrderId = null;
+      // Mulai countdown 10 menit (berbasis waktu akhir agar akurat sampai 00:00)
+      const endTime = Date.now() + 600 * 1000;
+      stopPolling();
+      const renderCountdown = () => {
+        const remainingSeconds = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+        const m = Math.floor(remainingSeconds / 60);
+        const s = remainingSeconds % 60;
+        qrisCountdownText.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        if (remainingSeconds <= 0) {
+          stopCountdown();
+          stopPaymentPoll();
+          qrisCountdownText.textContent = '00:00 - Kadaluarsa';
+        }
+      };
+      renderCountdown();
+      qrisCountdownInterval = setInterval(renderCountdown, 1000);
 
-        promoCodeInput.value = '';
-        promoCodeInput.disabled = false;
-        btnApplyPromo.disabled = false;
-        promoFeedbackMsg.innerHTML = '';
+      qrisModalOverlay.classList.add('open');
 
-        renderCart();
-        resetLiveStatusBox();
-      }
+      // === POST order ke server (QRIS selalu disimpan sebagai 'unpaid' di backend) ===
+      try {
+        const orderPayload = { ...payload, paymentStatus: 'unpaid' };
+        const res = await fetch(`${BACKEND_URL}/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderPayload)
+        });
+        const data = await res.json();
 
-      function showSuccessScreen(order, olseraInfo) {
+        if (!res.ok) {
+          throw new Error(data.error || 'Gagal menyimpan pesanan');
+        }
+
+        activeOrderId = data.order?.id;
+
+        // Jika backend mengembalikan dynamic QR dari GoPay, gunakan itu
+        if (data.qris?.qrUrl) {
+          qrisImg.src = data.qris.qrUrl;
+        }
+
+        // Mulai polling status pembayaran otomatis
+        if (activeOrderId) {
+          pollPaymentStatus(activeOrderId);
+        }
+      } catch (err) {
+        console.error('Gagal membuat order QRIS:', err);
+        stopPolling();
         qrisModalOverlay.classList.remove('open');
-        checkoutModalOverlay.classList.remove('open');
+        checkoutModalOverlay.classList.add('open');
+        alert(`Gagal memproses pesanan: ${err.message || 'Server tidak dapat dihubungi'}. Silakan coba lagi.`);
+      }
+    }
 
-        const isPaid =
-          order.paymentStatus === 'paid';
+    document.getElementById('btnCopyNominal').onclick = () => {
+      if (pendingOrderPayload) {
+        navigator.clipboard.writeText(String(pendingOrderPayload.total));
+        alert(`Nominal ${fmt(pendingOrderPayload.total)} disalin ke clipboard!`);
+      }
+    };
 
-        document.getElementById(
-          'successSubMessage'
-        ).innerHTML = `
+    /* Tanda silang: tutup layar pembayaran & kembali ke menu (keranjang tetap tersimpan) */
+    document.getElementById('btnCloseQrisModal').onclick = () => {
+      stopPolling();
+      activeOrderId = null;
+      qrisModalOverlay.classList.remove('open');
+      checkoutModalOverlay.classList.remove('open');
+    };
+
+    document.getElementById('btnBackFromQrisModal').onclick = () => {
+      stopPolling();
+      activeOrderId = null;
+      qrisModalOverlay.classList.remove('open');
+      checkoutModalOverlay.classList.add('open');
+    };
+
+    /* ------------------------------------------------------------- */
+    /* SUBMIT ORDER KE SERVER (Bayar di Kasir / non-QRIS)           */
+    /* ------------------------------------------------------------- */
+    async function submitFinalOrder(payload, paymentStatus) {
+      payload.paymentStatus = paymentStatus;
+
+      try {
+        const res = await fetch(`${BACKEND_URL}/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          showSuccessScreen(data.order, data.olsera);
+          resetCustomerState();
+          return;
+        }
+        throw new Error(data.error || 'Pesanan gagal disimpan');
+      } catch (err) {
+        console.error('Pesanan gagal disimpan:', err);
+        alert(`Pesanan belum tersimpan: ${err.message || 'server tidak dapat dihubungi'}. Silakan coba lagi.`);
+      }
+    }
+
+    function resetCustomerState() {
+      cart = {};
+      appliedPromo = null;
+      activeOrderId = null;
+
+      promoCodeInput.value = '';
+      promoCodeInput.disabled = false;
+      btnApplyPromo.disabled = false;
+      promoFeedbackMsg.innerHTML = '';
+
+      renderCart();
+      resetLiveStatusBox();
+    }
+
+    function showSuccessScreen(order, olseraInfo) {
+      qrisModalOverlay.classList.remove('open');
+      checkoutModalOverlay.classList.remove('open');
+
+      const isPaid =
+        order.paymentStatus === 'paid';
+
+      document.getElementById(
+        'successSubMessage'
+      ).innerHTML = `
     Terima kasih, <strong>${order.customer?.name}</strong>!<br>
     ${isPaid
-            ? 'Pembayaran QRIS telah diterima & pesanan otomatis disinkronkan ke kasir Olsera POS.'
-            : 'Silakan lakukan pembayaran di meja kasir barista kami.'
-          }
+          ? 'Pembayaran QRIS telah diterima & pesanan otomatis disinkronkan ke kasir Olsera POS.'
+          : 'Silakan lakukan pembayaran di meja kasir barista kami.'
+        }
   `;
 
-        document.getElementById(
-          'successReceiptDetails'
-        ).innerHTML = `
+      document.getElementById(
+        'successReceiptDetails'
+      ).innerHTML = `
     <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border-color);padding-bottom:8px;margin-bottom:8px;">
       <strong style="color:var(--pink-deep);font-size:1.05rem;">
         ${order.id}
@@ -2112,9 +2136,9 @@
 
       <span>
         ${order.fulfillment === 'dine-in'
-            ? `Meja ${order.customer?.table || '-'}`
-            : 'Bawa Pulang'
-          }
+          ? `Meja ${order.customer?.table || '-'}`
+          : 'Bawa Pulang'
+        }
       </span>
     </div>
 
@@ -2123,9 +2147,9 @@
 
       <strong style="color:${isPaid ? 'var(--success)' : 'var(--danger)'};">
         ${isPaid
-            ? 'Lunas (Paid) ✓'
-            : 'Menunggu Bayar di Kasir'
-          }
+          ? 'Lunas (Paid) ✓'
+          : 'Menunggu Bayar di Kasir'
+        }
       </strong>
     </div>
 
@@ -2134,9 +2158,9 @@
 
       <span style="font-weight:700;">
         ${olseraInfo && olseraInfo.synced
-            ? 'Tersinkron ke Kasir ✓'
-            : 'Tercatat dalam Antrean'
-          }
+          ? 'Tersinkron ke Kasir ✓'
+          : 'Tercatat dalam Antrean'
+        }
       </span>
     </div>
 
@@ -2150,14 +2174,14 @@
       `).join('')}
 
       ${order.discount > 0
-            ? `
+          ? `
         <div style="display:flex;justify-content:space-between;color:var(--success);font-weight:700;">
           <span>Diskon Promo</span>
           <span>- ${fmt(order.discount)}</span>
         </div>
       `
-            : ''
-          }
+          : ''
+        }
 
       <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border-color);margin-top:6px;padding-top:6px;font-weight:800;font-size:1rem;color:var(--espresso);">
         <span>Total</span>
@@ -2167,29 +2191,28 @@
     </div>
   `;
 
-        document
-          .getElementById('successModalOverlay')
-          .classList.add('open');
+      document
+        .getElementById('successModalOverlay')
+        .classList.add('open');
+    }
+
+    document.getElementById(
+      'btnFinishOrderReturn'
+    ).onclick = () => {
+      document
+        .getElementById('successModalOverlay')
+        .classList.remove('open');
+    };
+
+    /* Inisialisasi awal */
+    window.addEventListener(
+      'DOMContentLoaded',
+      () => {
+        loadStorefrontData();
       }
-
-      document.getElementById(
-        'btnFinishOrderReturn'
-      ).onclick = () => {
-        document
-          .getElementById('successModalOverlay')
-          .classList.remove('open');
-      };
-
-      /* Inisialisasi awal */
-      window.addEventListener(
-        'DOMContentLoaded',
-        () => {
-          loadStorefrontData();
-        }
-      );
-    </script>
+    );
+  </script>
 
 </body>
 
 </html>
-```
