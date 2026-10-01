@@ -969,22 +969,82 @@
       margin-top: 4px;
     }
 
-    .btn-confirm-paid {
-      width: 100%;
-      background: var(--success);
-      color: #fff;
-      border: none;
-      padding: 14px;
-      border-radius: var(--radius-pill);
-      font-size: 0.96rem;
-      font-weight: 800;
-      cursor: pointer;
-      box-shadow: 0 4px 16px rgba(95, 138, 99, 0.35);
-      transition: opacity .15s;
+    /* Live Payment Status Box (auto-polling, menggantikan tombol manual) */
+    .qris-live-status-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--cream-bg);
+      border: 1.5px solid var(--pink-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      margin-bottom: 4px;
+      text-align: left;
     }
 
-    .btn-confirm-paid:hover {
-      opacity: 0.95;
+    .qris-live-status-box.paid {
+      background: var(--success-bg);
+      border-color: var(--success);
+    }
+
+    .qris-pulse-dot {
+      position: relative;
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    .qris-pulse-dot .dot {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--pink-primary);
+      top: 0;
+      left: 0;
+    }
+
+    .qris-pulse-dot.paid .dot {
+      background: var(--success);
+    }
+
+    .qris-pulse-dot .ring {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--pink-primary);
+      top: 0;
+      left: 0;
+      animation: pulse-ring 1.5s ease-out infinite;
+      opacity: 0;
+    }
+
+    .qris-pulse-dot.paid .ring {
+      animation: none;
+      display: none;
+    }
+
+    @keyframes pulse-ring {
+      0%   { transform: scale(1);   opacity: 0.7; }
+      100% { transform: scale(2.5); opacity: 0; }
+    }
+
+    .qris-live-status-text {
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: var(--pink-deep);
+      line-height: 1.35;
+    }
+
+    .qris-live-status-text .sub-text {
+      font-weight: 400;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+
+    .qris-live-status-box.paid .qris-live-status-text {
+      color: var(--success);
     }
 
     /* Success Screen */
@@ -1193,8 +1253,8 @@
         <strong id="qrisCountdownText">10:00</strong>
       </div>
 
-      <h3 style="margin-bottom:4px;">Scan QRIS Toko</h3>
-      <p class="sub" style="margin-bottom:14px;">Buka aplikasi BCA Mobile, GoPay, OVO, Dana, atau m-Banking Anda.</p>
+      <h3 style="margin-bottom:4px;">Scan &amp; Bayar via GoPay / QRIS</h3>
+      <p class="sub" style="margin-bottom:14px;">Buka aplikasi GoPay, OVO, Dana, BCA, ShopeePay, atau m-Banking Anda.</p>
 
       <div class="qris-card-box">
         <img id="qrisImageDisplay" src="qris.svg" alt="QRIS Rami Coffee"
@@ -1206,15 +1266,26 @@
       <div class="qris-instruction">
         <strong>Langkah Pembayaran:</strong>
         <ol>
-          <li>Buka aplikasi m-Banking atau e-Wallet pilihan Anda.</li>
+          <li>Buka aplikasi e-Wallet atau m-Banking pilihan Anda.</li>
           <li>Pilih menu <strong>Scan QR / QRIS</strong>.</li>
           <li>Arahkan kamera ke QR Code di atas.</li>
-          <li>Masukkan nominal transfer persis sesuai angka di atas.</li>
-          <li>Setelah pembayaran sukses, klik tombol hijau di bawah ini.</li>
+          <li>Masukkan nominal persis seperti angka di atas, lalu bayar.</li>
+          <li><strong>Pesanan otomatis terkonfirmasi</strong> setelah pembayaran berhasil.</li>
         </ol>
       </div>
 
-      <button class="btn-confirm-paid" id="btnConfirmQrisPaid">✓ Saya Sudah Bayar</button>
+      <!-- Live Auto-Polling Status — tombol manual dihapus -->
+      <div class="qris-live-status-box" id="qrisLiveStatusBox">
+        <div class="qris-pulse-dot" id="qrisPulseDot">
+          <div class="ring"></div>
+          <div class="dot"></div>
+        </div>
+        <div class="qris-live-status-text">
+          <div id="qrisLiveStatusMain">Menunggu Pembayaran GoPay / QRIS...</div>
+          <div class="sub-text" id="qrisLiveStatusSub">Sistem memantau otomatis setiap 2,5 detik</div>
+        </div>
+      </div>
+
       <button
         style="background:none;border:none;color:var(--text-muted);font-size:0.82rem;margin-top:12px;cursor:pointer;text-decoration:underline;"
         id="btnBackFromQrisModal">Ubah Metode Bayar</button>
@@ -1756,6 +1827,7 @@
       checkoutModalOverlay.classList.remove('open');
 
       if (payMethod === 'QRIS') {
+        // Langsung POST order (unpaid), lalu tampilkan QRIS & mulai polling
         openQrisModal(pendingOrderPayload);
       } else {
         submitFinalOrder(pendingOrderPayload, 'unpaid');
@@ -1763,88 +1835,169 @@
     };
 
     /* ------------------------------------------------------------- */
-    /* QRIS MODAL & PEMBAYARAN                                       */
+    /* QRIS MODAL & AUTO-POLLING PEMBAYARAN GOPAY                    */
     /* ------------------------------------------------------------- */
     const qrisModalOverlay = document.getElementById('qrisModalOverlay');
     const qrisExactAmountText = document.getElementById('qrisExactAmountText');
     const qrisCountdownText = document.getElementById('qrisCountdownText');
 
-    function openQrisModal(payload) {
+    let activeOrderId = null;        // ID order yang sedang menunggu pembayaran
+    let paymentPollInterval = null;  // Interval polling status pembayaran
+
+    /** Reset tampilan status polling ke kondisi awal (menunggu) */
+    function resetLiveStatusBox() {
+      const box = document.getElementById('qrisLiveStatusBox');
+      const dot = document.getElementById('qrisPulseDot');
+      const main = document.getElementById('qrisLiveStatusMain');
+      const sub = document.getElementById('qrisLiveStatusSub');
+      if (!box) return;
+      box.classList.remove('paid');
+      if (dot) dot.classList.remove('paid');
+      if (main) main.textContent = 'Menunggu Pembayaran GoPay / QRIS...';
+      if (sub) sub.textContent = 'Sistem memantau otomatis setiap 2,5 detik';
+    }
+
+    /** Hentikan polling & countdown */
+    function stopPolling() {
+      if (paymentPollInterval) {
+        clearInterval(paymentPollInterval);
+        paymentPollInterval = null;
+      }
+      if (qrisCountdownInterval) {
+        clearInterval(qrisCountdownInterval);
+        qrisCountdownInterval = null;
+      }
+    }
+
+    /**
+     * Mulai polling status pembayaran ke backend setiap 2,5 detik.
+     * Jika sudah lunas, otomatis tutup modal & tampilkan success screen.
+     */
+    function pollPaymentStatus(orderId) {
+      stopPolling(); // pastikan tidak ada polling duplikat
+
+      paymentPollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/orders/${encodeURIComponent(orderId)}/payment-status`);
+          if (!res.ok) return; // skip jika network error, coba lagi nanti
+
+          const data = await res.json();
+
+          if (data.paid === true) {
+            // === PEMBAYARAN BERHASIL ===
+            stopPolling();
+
+            // Update tampilan status box → sukses
+            const box = document.getElementById('qrisLiveStatusBox');
+            const dot = document.getElementById('qrisPulseDot');
+            const main = document.getElementById('qrisLiveStatusMain');
+            const sub = document.getElementById('qrisLiveStatusSub');
+            if (box) box.classList.add('paid');
+            if (dot) dot.classList.add('paid');
+            if (main) main.textContent = '✓ Pembayaran Berhasil Dikonfirmasi!';
+            if (sub) sub.textContent = 'Pesanan masuk ke kasir Olsera POS secara otomatis.';
+
+            // Tunggu sebentar agar pelanggan bisa melihat pesan sukses
+            await new Promise(r => setTimeout(r, 900));
+
+            // Tutup QRIS modal & tampilkan success screen
+            qrisModalOverlay.classList.remove('open');
+            showSuccessScreen(data.order, data.olsera);
+            resetCustomerState();
+          }
+        } catch (_err) {
+          // Abaikan error jaringan, coba lagi di interval berikutnya
+        }
+      }, 2500);
+    }
+
+    /**
+     * Buka QRIS modal:
+     * 1. POST order ke backend terlebih dahulu (status unpaid)
+     * 2. Tampilkan QR dari GoPay dynamic atau fallback statis
+     * 3. Mulai countdown & polling otomatis
+     */
+    async function openQrisModal(payload) {
+      // Tampilkan modal dulu agar user tidak bingung
+      resetLiveStatusBox();
       qrisExactAmountText.textContent = fmt(payload.total);
 
+      // Tampilkan QR statis dulu sementara menunggu response server
       const qrisImg = document.getElementById('qrisImageDisplay');
-
       if (settings.qrisImage) {
         qrisImg.src = settings.qrisImage;
       } else {
-        qrisImg.src =
-          `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=RAMI-COFFEE-QRIS-${payload.total}`;
+        qrisImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=RAMI-COFFEE-QRIS-${payload.total}`;
       }
 
+      // Mulai countdown 10 menit
       let remainingSeconds = 600;
-
-      if (qrisCountdownInterval)
-        clearInterval(qrisCountdownInterval);
-
+      stopPolling();
       qrisCountdownInterval = setInterval(() => {
         remainingSeconds--;
-
         if (remainingSeconds <= 0) {
           clearInterval(qrisCountdownInterval);
           qrisCountdownText.textContent = 'Kadaluarsa';
+          stopPolling();
           return;
         }
-
         const m = Math.floor(remainingSeconds / 60);
         const s = remainingSeconds % 60;
-
-        qrisCountdownText.textContent =
-          `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-
+        qrisCountdownText.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
       }, 1000);
 
       qrisModalOverlay.classList.add('open');
+
+      // === POST order ke server (QRIS selalu disimpan sebagai 'unpaid' di backend) ===
+      try {
+        const orderPayload = { ...payload, paymentStatus: 'unpaid' };
+        const res = await fetch(`${BACKEND_URL}/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderPayload)
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Gagal menyimpan pesanan');
+        }
+
+        activeOrderId = data.order?.id;
+
+        // Jika backend mengembalikan dynamic QR dari GoPay, gunakan itu
+        if (data.qris?.qrUrl) {
+          qrisImg.src = data.qris.qrUrl;
+        }
+
+        // Mulai polling status pembayaran otomatis
+        if (activeOrderId) {
+          pollPaymentStatus(activeOrderId);
+        }
+      } catch (err) {
+        console.error('Gagal membuat order QRIS:', err);
+        stopPolling();
+        qrisModalOverlay.classList.remove('open');
+        checkoutModalOverlay.classList.add('open');
+        alert(`Gagal memproses pesanan: ${err.message || 'Server tidak dapat dihubungi'}. Silakan coba lagi.`);
+      }
     }
 
     document.getElementById('btnCopyNominal').onclick = () => {
       if (pendingOrderPayload) {
-        navigator.clipboard.writeText(
-          String(pendingOrderPayload.total)
-        );
-
-        alert(
-          `Nominal ${fmt(pendingOrderPayload.total)} disalin ke clipboard!`
-        );
+        navigator.clipboard.writeText(String(pendingOrderPayload.total));
+        alert(`Nominal ${fmt(pendingOrderPayload.total)} disalin ke clipboard!`);
       }
     };
 
     document.getElementById('btnBackFromQrisModal').onclick = () => {
-      if (qrisCountdownInterval)
-        clearInterval(qrisCountdownInterval);
-
+      stopPolling();
+      activeOrderId = null;
       qrisModalOverlay.classList.remove('open');
       checkoutModalOverlay.classList.add('open');
     };
 
-    document.getElementById('btnConfirmQrisPaid').onclick = () => {
-      if (qrisCountdownInterval)
-        clearInterval(qrisCountdownInterval);
-
-      const btn =
-        document.getElementById('btnConfirmQrisPaid');
-
-      btn.disabled = true;
-      btn.textContent =
-        'Memverifikasi Pembayaran & Masuk Kasir...';
-
-      submitFinalOrder(
-        pendingOrderPayload,
-        'paid'
-      );
-    };
-
     /* ------------------------------------------------------------- */
-    /* SUBMIT ORDER KE SERVER & CONFIRMATION SCREEN                  */
+    /* SUBMIT ORDER KE SERVER (Bayar di Kasir / non-QRIS)           */
     /* ------------------------------------------------------------- */
     async function submitFinalOrder(payload, paymentStatus) {
       payload.paymentStatus = paymentStatus;
@@ -1852,26 +2005,20 @@
       try {
         const res = await fetch(`${BACKEND_URL}/orders`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
         const data = await res.json();
 
         if (res.ok) {
-          showSuccessScreen(
-            data.order,
-            data.olsera
-          );
-
+          showSuccessScreen(data.order, data.olsera);
           resetCustomerState();
           return;
         }
         throw new Error(data.error || 'Pesanan gagal disimpan');
       } catch (err) {
-        console.error('Pesanan gagal disimpan ke Supabase:', err);
+        console.error('Pesanan gagal disimpan:', err);
         alert(`Pesanan belum tersimpan: ${err.message || 'server tidak dapat dihubungi'}. Silakan coba lagi.`);
       }
     }
@@ -1879,6 +2026,7 @@
     function resetCustomerState() {
       cart = {};
       appliedPromo = null;
+      activeOrderId = null;
 
       promoCodeInput.value = '';
       promoCodeInput.disabled = false;
@@ -1886,13 +2034,7 @@
       promoFeedbackMsg.innerHTML = '';
 
       renderCart();
-
-      const confirmBtn =
-        document.getElementById('btnConfirmQrisPaid');
-
-      confirmBtn.disabled = false;
-      confirmBtn.textContent =
-        '✓ Saya Sudah Bayar';
+      resetLiveStatusBox();
     }
 
     function showSuccessScreen(order, olseraInfo) {
