@@ -1232,12 +1232,10 @@
       }
 
       .card-desc {
-        .card-desc {
-          max-height: 4.5em;
-          overflow: hidden;
-          font-size: 0.78rem;
-          margin-bottom: 10px;
-        }
+        max-height: 4.5em;
+        overflow: hidden;
+        font-size: 0.78rem;
+        margin-bottom: 10px;
       }
 
       .card-footer {
@@ -1317,6 +1315,54 @@
       .hero-title {
         font-size: 1.45rem;
       }
+    }
+
+    /* ===== Layout vertikal: timer & pembayaran QRIS ===== */
+    .qris-container .qris-timer-chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      width: fit-content;
+      max-width: calc(100% - 56px);
+      margin: 4px auto 16px;
+      padding: 10px 28px;
+      border-radius: var(--radius-md);
+      font-size: 0.78rem;
+    }
+
+    .qris-container .qris-timer-chip strong {
+      font-size: 2.1rem;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+    }
+
+    .qris-card-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      max-width: 300px;
+    }
+
+    .qris-card-box .qris-amount-display {
+      margin: 0;
+    }
+
+    .qris-card-box .btn-copy-amount {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--blush);
+      border: 1px solid var(--pink-subtle);
+      border-radius: var(--radius-pill);
+      text-decoration: none;
+    }
+
+    .qris-live-status-box {
+      flex-direction: column;
+      text-align: center;
+      gap: 8px;
     }
   </style>
 </head>
