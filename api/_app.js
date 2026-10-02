@@ -569,47 +569,47 @@ api.get(
 );
 
 /* --- Webhook GoPay Merchant / Midtrans Callback (Realtime Push) --- */
-api.post(
-    '/webhook/gopay',
-    wrap(async (req, res) => {
-        const body = req.body || {};
-        const isValid = gopay.verifyWebhookSignature(body);
-        if (!isValid) {
-            return res.status(403).json({ error: 'Invalid signature' });
-        }
-
-        const orderId = body.order_id;
-        const txStatus = (body.transaction_status || '').toLowerCase();
-        const isPaid = txStatus === 'settlement' || txStatus === 'capture';
-
-        if (orderId && isPaid) {
-            const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
-            if (orderRow && orderRow.payment_status !== 'paid') {
-                const updateData = { payment_status: 'paid', paid_at: body.settlement_time || new Date().toISOString() };
-                await supabase.from('orders').update(updateData).eq('id', orderId);
-
-                const order = mapDBToOrder({ ...orderRow, ...updateData });
-                await syncOrder(order); // sync status lunas ke Olsera POS
-                await addLog(`Webhook GoPay: Order ${orderId} lunas (${body.payment_type || 'qris'}) ✓`, 'ok');
-            }
-        }
-
-        res.json({ status: 'OK' });
-    })
-);
-
-api.post(
-    '/webhook/midtrans',
-    (req, res, next) => {
-        req.url = '/webhook/gopay';
-        api.handle(req, res, next);
+const handleGopayWebhook = wrap(async (req, res) => {
+    const body = req.body || {};
+    if (!gopay.verifyWebhookSignature(body)) {
+        return res.status(403).json({ error: 'Invalid signature' });
     }
-);
+
+    const orderId = body.order_id;
+    const txStatus = String(body.transaction_status || '').toLowerCase();
+    const isPaid = txStatus === 'settlement' || txStatus === 'capture';
+
+    if (orderId && isPaid) {
+        const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
+        if (orderRow && orderRow.payment_status !== 'paid') {
+            /* Nominal dari penyedia pembayaran harus sama dengan total pesanan */
+            if (Math.round(Number(body.gross_amount)) !== Math.round(Number(orderRow.total))) {
+                await addLog(`Webhook GoPay DIABAIKAN: nominal ${body.gross_amount} tidak sama dengan total pesanan ${orderId} (${orderRow.total})`, 'err');
+                return res.json({ status: 'IGNORED' });
+            }
+            const updateData = { payment_status: 'paid', paid_at: new Date().toISOString() };
+            await supabase.from('orders').update(updateData).eq('id', orderId);
+
+            const order = mapDBToOrder({ ...orderRow, ...updateData });
+            await syncOrder(order); // sync status lunas ke Olsera POS
+            await addLog(`Webhook GoPay: Order ${orderId} lunas (${body.payment_type || 'qris'}) ✓`, 'ok');
+        }
+    }
+
+    res.json({ status: 'OK' });
+});
+api.post('/webhook/gopay', handleGopayWebhook);
+api.post('/webhook/midtrans', handleGopayWebhook);
 
 /* --- Simulasi Pembayaran (Untuk Uji Coba Pengembang) --- */
 api.post(
     '/payment/simulate-pay',
     wrap(async (req, res) => {
+        /* KEAMANAN: endpoint ini publik. Di produksi harus mati, kalau tidak siapa pun yang tahu
+           ID pesanan bisa menandainya lunas tanpa membayar. Aktif hanya jika ALLOW_SIMULATE_PAY=true. */
+        if (process.env.ALLOW_SIMULATE_PAY !== 'true') {
+            return res.status(403).json({ error: 'Simulasi pembayaran dinonaktifkan' });
+        }
         const { orderId } = req.body || {};
         if (!orderId) return res.status(400).json({ error: 'orderId wajib diisi' });
 
