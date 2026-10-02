@@ -63,12 +63,6 @@ async function createQrisTransaction({ orderId, amount, customerName, customerPh
       first_name: customerName || 'Pelanggan Rami',
       phone: customerPhone || '',
     },
-    item_details: items.slice(0, 15).map((item) => ({
-      id: String(item.id || item.sku || 'item').slice(0, 50),
-      price: Math.round(Number(item.price) || 0),
-      quantity: Number(item.qty) || 1,
-      name: String(item.name || 'Menu').slice(0, 50),
-    })),
   };
 
   try {
@@ -80,6 +74,7 @@ async function createQrisTransaction({ orderId, amount, customerName, customerPh
         'Authorization': getAuthHeader(),
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
     });
 
     const data = await res.json().catch(() => ({}));
@@ -131,6 +126,7 @@ async function checkPaymentStatus(orderId) {
         'Accept': 'application/json',
         'Authorization': getAuthHeader(),
       },
+      signal: AbortSignal.timeout(8000),
     });
 
     const data = await res.json().catch(() => ({}));
@@ -151,7 +147,7 @@ async function checkPaymentStatus(orderId) {
       paid: isPaid,
       status: isPaid ? 'paid' : isExpired ? 'expired' : 'pending',
       transactionStatus: txStatus,
-      paidAt: isPaid ? (data.settlement_time || new Date().toISOString()) : null,
+      paidAt: isPaid ? new Date().toISOString() : null,
       paymentType: data.payment_type || 'qris',
       raw: data,
     };
@@ -166,7 +162,7 @@ async function checkPaymentStatus(orderId) {
  * Rumus: SHA512(order_id + status_code + gross_amount + ServerKey)
  */
 function verifyWebhookSignature(body) {
-  if (!SERVER_KEY) return true; // jika server key belum diset, bypass
+  if (!SERVER_KEY) return false; // tanpa server key notifikasi tidak bisa diverifikasi -> tolak
   const { order_id, status_code, gross_amount, signature_key } = body || {};
   if (!order_id || !status_code || !gross_amount || !signature_key) {
     return false;
@@ -174,7 +170,9 @@ function verifyWebhookSignature(body) {
 
   const raw = `${order_id}${status_code}${gross_amount}${SERVER_KEY}`;
   const calculated = crypto.createHash('sha512').update(raw).digest('hex');
-  return calculated.toLowerCase() === String(signature_key).toLowerCase();
+  const a = Buffer.from(calculated.toLowerCase());
+  const b = Buffer.from(String(signature_key).toLowerCase());
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 module.exports = {
