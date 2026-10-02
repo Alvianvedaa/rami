@@ -22,8 +22,11 @@ BASE_URL = BASE_URL.replace(/\/+$/, '');
 const APP_ID = process.env.OLSERA_APP_ID || '';
 /* ID toko/outlet Olsera (store 733). Bisa ditimpa lewat env OLSERA_STORE_ID. */
 const STORE_ID = String(process.env.OLSERA_STORE_ID || '733');
-/* ID tipe pelanggan Olsera (opsional, ambil dari Olsera: Pelanggan > Tipe Pelanggan) */
+/* Olsera MEWAJIBKAN customer_type_id & customer_phone saat membuat order.
+   - OLSERA_CUSTOMER_TYPE_ID : ID tipe pelanggan yang ADA di Olsera (buat tipe "Online/Web" lalu catat ID-nya)
+   - OLSERA_DEFAULT_PHONE    : nomor cadangan untuk pesanan tanpa nomor WA pelanggan */
 const CUSTOMER_TYPE_ID = String(process.env.OLSERA_CUSTOMER_TYPE_ID || '').trim();
+const DEFAULT_PHONE = String(process.env.OLSERA_DEFAULT_PHONE || '081000000000').trim();
 const SECRET_KEY = process.env.OLSERA_SECRET_KEY || process.env.OLSERA_API_KEY || 'secret';
 
 /* Endpoint */
@@ -153,16 +156,11 @@ function mapOrderToOlseraPayload(order) {
     order_date: (order.createdAt || new Date().toISOString()).slice(0, 10),
     currency_id: 'IDR',
     customer_name: customer.name || 'Tamu',
+    customer_type_id: CUSTOMER_TYPE_ID,
+    customer_phone: String(customer.phone || '').replace(/[^\d+]/g, '') || DEFAULT_PHONE,
     notes,
     is_funding: '0',
   };
-
-  /* Tipe pelanggan harus ID yang ADA di Olsera. ID "0" memicu error 406
-     "Data customer type does not exist". Hanya dikirim jika OLSERA_CUSTOMER_TYPE_ID diisi. */
-  if (CUSTOMER_TYPE_ID) {
-    payload.customer_type_id = CUSTOMER_TYPE_ID;
-    if (customer.phone) payload.customer_phone = customer.phone;
-  }
   return payload;
 }
 
@@ -173,6 +171,12 @@ async function syncOrderToOlsera(order) {
   if (MOCK_MODE) return mockSync(order);
   if (!BASE_URL || !APP_ID) {
     throw new OlseraConfigError('OLSERA_API_BASE_URL dan OLSERA_APP_ID wajib diisi di .env');
+  }
+
+  if (!CUSTOMER_TYPE_ID) {
+    throw new OlseraConfigError(
+      'OLSERA_CUSTOMER_TYPE_ID belum diisi di env Vercel (Olsera mewajibkan tipe pelanggan pada order).'
+    );
   }
 
   const token = await getAccessToken();
@@ -360,7 +364,8 @@ async function testConnection() {
     cachedToken = null; // paksa minta token baru agar benar-benar teruji
     tokenExpiresAt = 0;
     await getAccessToken();
-    return { ...base, ok: true, message: `Terhubung ke Olsera (store ${STORE_ID}).` };
+    const warn = CUSTOMER_TYPE_ID ? '' : ' PERINGATAN: OLSERA_CUSTOMER_TYPE_ID belum diisi, pesanan akan ditolak Olsera.';
+    return { ...base, ok: true, message: `Terhubung ke Olsera (store ${STORE_ID}).${warn}` };
   } catch (err) {
     return { ...base, ok: false, message: err.message };
   }
