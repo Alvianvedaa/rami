@@ -14,12 +14,14 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const olsera = require('../olsera-client');
+const gopay = require('../gopay-client');
 
 /* ------------------------------------------------------------------ */
 /* 1. Konfigurasi                                                      */
 /* ------------------------------------------------------------------ */
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*';
 const STORE_NAME = 'Rami Coffee & Eatery';
+const OLSERA_STORE_ID = String(process.env.OLSERA_STORE_ID || '733'); // Olsera store 733
 
 /* ------------------------------------------------------------------ */
 /* 2. Penyimpanan (Supabase)                                          */
@@ -105,7 +107,7 @@ const mapDBToSettings = (row) => ({
     storeName: row.store_name,
     qrisImage: row.qris_image_url || 'qris.svg',
     merchantName: row.merchant_name,
-    outletId: row.outlet_id,
+    outletId: !row.outlet_id || row.outlet_id === 'OUTLET-001' ? OLSERA_STORE_ID : row.outlet_id,
     taxPercent: row.tax_percent
 });
 
@@ -114,7 +116,7 @@ const mapSettingsToDB = (s) => ({
     store_name: s.storeName || STORE_NAME,
     qris_image_url: s.qrisImage === 'qris.svg' ? null : s.qrisImage,
     merchant_name: s.merchantName || 'RAMI COFFEE & EATERY',
-    outlet_id: s.outletId || 'OUTLET-001',
+    outlet_id: s.outletId || OLSERA_STORE_ID,
     tax_percent: s.taxPercent || 10
 });
 
@@ -236,7 +238,16 @@ api.get(
         if (!supabase) return res.status(503).json({ ok: false, database: false, error: 'Supabase belum dikonfigurasi' });
         const { error } = await supabase.from('settings').select('id').limit(1);
         if (error) return res.status(503).json({ ok: false, database: false, ...databaseErrorPayload(error) });
-        res.json({ ok: true, database: true, auth: Boolean(supabaseAuth), mockMode: olsera.isMockMode(), time: new Date().toISOString(), store: STORE_NAME });
+        res.json({
+            ok: true,
+            database: true,
+            auth: Boolean(supabaseAuth),
+            mockMode: olsera.isMockMode(),
+            olseraConfigured: typeof olsera.isConfigured === 'function' ? olsera.isConfigured() : undefined,
+            outletId: OLSERA_STORE_ID,
+            time: new Date().toISOString(),
+            store: STORE_NAME
+        });
     })
 );
 
@@ -330,7 +341,7 @@ api.post(
         const code = String(req.body.code || '').trim().toUpperCase();
         const subtotal = Number(req.body.subtotal) || 0;
         const { data: promoRow, error } = await supabase.from('promos').select('*').eq('code', code).single();
-        
+
         if (error || !promoRow) return res.json({ valid: false, message: 'Kode promo tidak valid' });
         const validation = calculatePromoDiscount(promoRow, subtotal);
         if (!validation.valid) return res.json(validation);
@@ -341,15 +352,25 @@ api.post(
 
 async function syncOrder(order) {
     try {
+        if (order.olseraOrderId) {
+            if (order.paymentStatus === 'paid') {
+                await olsera.markOrderAsPaidInOlsera(order.olseraOrderId, order);
+                const updateData = { olsera_sync_status: 'synced', olsera_sync_error: null };
+                await supabase.from('orders').update(updateData).eq('id', order.id);
+                await addLog(`Status pembayaran Order ${order.id} diupdate ke Olsera POS (LUNAS) ✓`, 'ok');
+                return { synced: true, olseraOrderId: order.olseraOrderId };
+            }
+            return { synced: true, olseraOrderId: order.olseraOrderId };
+        }
         const result = await olsera.syncOrderToOlsera(order);
         const updateData = { olsera_order_id: result.olseraOrderId, olsera_sync_status: 'synced', olsera_sync_error: null };
         await supabase.from('orders').update(updateData).eq('id', order.id);
-        await addLog(`Order ${order.id} tersinkron ke Olsera (${olsera.isMockMode() ? 'MOCK' : 'LIVE'}) ✓`, 'ok');
+        await addLog(`Order ${order.id} tersinkron ke Olsera POS (${olsera.isMockMode() ? 'MOCK' : 'LIVE'}) ✓`, 'ok');
         return { synced: true, olseraOrderId: result.olseraOrderId };
     } catch (err) {
         const updateData = { olsera_sync_status: 'sync_failed', olsera_sync_error: err.message };
         await supabase.from('orders').update(updateData).eq('id', order.id);
-        await addLog(`Gagal sinkron order ${order.id}: ${err.message}`, 'err');
+        await addLog(`Gagal sinkron order ${order.id} ke Olsera: ${err.message}`, 'err');
         return { synced: false, error: err.message };
     }
 }
@@ -412,8 +433,10 @@ api.post(
         if (total <= 0) return res.status(400).json({ error: 'Total pesanan tidak valid' });
 
         const id = req.body.id || `RAMI-${Date.now().toString(36).toUpperCase()}`;
-        const paymentStatus = req.body.paymentStatus || (req.body.paymentMethod === 'Bayar di tempat' ? 'unpaid' : 'paid');
-        
+        const isQris = (req.body.paymentMethod || 'QRIS').toUpperCase() === 'QRIS';
+        // Pesanan QRIS WAJIB 'unpaid' dulu sampai terbayar di GoPay Merchant
+        const paymentStatus = isQris ? 'unpaid' : (req.body.paymentStatus || 'unpaid');
+
         const order = {
             ...req.body,
             id,
@@ -445,7 +468,7 @@ api.post(
             quantity: item.qty,
             subtotal: item.subtotal || (item.price * item.qty)
         }));
-        
+
         const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
         if (itemsError) {
             await supabase.from('orders').delete().eq('id', id);
@@ -461,12 +484,147 @@ api.post(
 
         await addLog(`Pesanan baru ${id} dari ${customer.name}`);
 
-        const sync = paymentStatus === 'paid' ? await syncOrder(order) : { synced: false };
-        
+        const sync = await syncOrder(order);
+
+        // Buat data transaksi GoPay / QRIS jika metode pembayaran QRIS
+        let qrisData = null;
+        if (isQris) {
+            try {
+                qrisData = await gopay.createQrisTransaction({
+                    orderId: id,
+                    amount: total,
+                    customerName: customer.name,
+                    customerPhone: customer.phone,
+                    items: normalizedItems,
+                });
+            } catch (err) {
+                console.error('Gagal generate QRIS GoPay:', err.message);
+            }
+        }
+
         // Fetch saved order with items
         const { data: savedOrderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', id).single();
-        
-        res.status(201).json({ order: mapDBToOrder(savedOrderRow), olsera: sync });
+
+        res.status(201).json({
+            order: mapDBToOrder(savedOrderRow),
+            olsera: sync,
+            qris: qrisData
+        });
+    })
+);
+
+/* --- Endpoint Cek Status Pembayaran Realtime (Polling Storefront) --- */
+api.get(
+    '/orders/:id/payment-status',
+    wrap(async (req, res) => {
+        const { data: orderRow, error: fetchError } = await supabase
+            .from('orders')
+            .select('*, order_items(*)')
+            .eq('id', req.params.id)
+            .single();
+
+        if (fetchError || !orderRow) {
+            return res.status(404).json({ error: 'Order tidak ditemukan' });
+        }
+
+        // Jika di database sudah tercatat lunas
+        if (orderRow.payment_status === 'paid') {
+            return res.json({
+                ok: true,
+                paid: true,
+                status: 'paid',
+                paidAt: orderRow.paid_at,
+                order: mapDBToOrder(orderRow)
+            });
+        }
+
+        // Cek langsung ke server GoPay / Midtrans jika menggunakan dynamic gateway
+        const gatewayStatus = await gopay.checkPaymentStatus(req.params.id);
+        if (gatewayStatus.paid) {
+            const paidAt = gatewayStatus.paidAt || new Date().toISOString();
+            const updateData = { payment_status: 'paid', paid_at: paidAt };
+            await supabase.from('orders').update(updateData).eq('id', req.params.id);
+
+            const order = mapDBToOrder({ ...orderRow, ...updateData });
+            await syncOrder(order); // otomatis update kasir Olsera ke LUNAS & Confirmed
+            await addLog(`Pembayaran GoPay/QRIS untuk ${order.id} terkonfirmasi otomatis ✓`, 'ok');
+
+            const { data: finalOrder } = await supabase.from('orders').select('*, order_items(*)').eq('id', req.params.id).single();
+            return res.json({
+                ok: true,
+                paid: true,
+                status: 'paid',
+                paidAt,
+                order: mapDBToOrder(finalOrder)
+            });
+        }
+
+        return res.json({
+            ok: true,
+            paid: false,
+            status: orderRow.payment_status || 'unpaid',
+            order: mapDBToOrder(orderRow)
+        });
+    })
+);
+
+/* --- Webhook GoPay Merchant / Midtrans Callback (Realtime Push) --- */
+api.post(
+    '/webhook/gopay',
+    wrap(async (req, res) => {
+        const body = req.body || {};
+        const isValid = gopay.verifyWebhookSignature(body);
+        if (!isValid) {
+            return res.status(403).json({ error: 'Invalid signature' });
+        }
+
+        const orderId = body.order_id;
+        const txStatus = (body.transaction_status || '').toLowerCase();
+        const isPaid = txStatus === 'settlement' || txStatus === 'capture';
+
+        if (orderId && isPaid) {
+            const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
+            if (orderRow && orderRow.payment_status !== 'paid') {
+                const updateData = { payment_status: 'paid', paid_at: body.settlement_time || new Date().toISOString() };
+                await supabase.from('orders').update(updateData).eq('id', orderId);
+
+                const order = mapDBToOrder({ ...orderRow, ...updateData });
+                await syncOrder(order); // sync status lunas ke Olsera POS
+                await addLog(`Webhook GoPay: Order ${orderId} lunas (${body.payment_type || 'qris'}) ✓`, 'ok');
+            }
+        }
+
+        res.json({ status: 'OK' });
+    })
+);
+
+api.post(
+    '/webhook/midtrans',
+    (req, res, next) => {
+        req.url = '/webhook/gopay';
+        api.handle(req, res, next);
+    }
+);
+
+/* --- Simulasi Pembayaran (Untuk Uji Coba Pengembang) --- */
+api.post(
+    '/payment/simulate-pay',
+    wrap(async (req, res) => {
+        const { orderId } = req.body || {};
+        if (!orderId) return res.status(400).json({ error: 'orderId wajib diisi' });
+
+        const { data: orderRow } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
+        if (!orderRow) return res.status(404).json({ error: 'Order tidak ditemukan' });
+
+        const updateData = { payment_status: 'paid', paid_at: new Date().toISOString() };
+        await supabase.from('orders').update(updateData).eq('id', orderId);
+
+        const order = mapDBToOrder({ ...orderRow, ...updateData });
+        const synced = await syncOrder(order);
+        await addLog(`Simulasi Pembayaran: Order ${orderId} ditandai Lunas ✓`, 'ok');
+
+        const { data: finalOrder } = await supabase.from('orders').select('*, order_items(*)').eq('id', orderId).single();
+        res.json({ ok: true, paid: true, order: mapDBToOrder(finalOrder), olsera: synced });
     })
 );
 
@@ -494,10 +652,10 @@ api.post(
         }
         const id = req.body.id || `p${Date.now().toString(36)}`;
         const product = { ...req.body, id, price: Number(price) };
-        
+
         const { error } = await supabase.from('products').upsert(mapProductToDB(product));
         if (error) throw error;
-        
+
         await addLog(`Produk "${product.name}" disimpan (Rp ${product.price.toLocaleString('id-ID')})`, 'ok');
 
         try {
@@ -515,13 +673,13 @@ api.put(
     wrap(async (req, res) => {
         const price = Number(req.body.price);
         if (Number.isNaN(price) || price < 0) return res.status(400).json({ error: 'Harga baru tidak valid' });
-        
+
         const { data: productRow, error: fetchError } = await supabase.from('products').select('*').eq('id', req.params.id).single();
         if (fetchError || !productRow) return res.status(404).json({ error: 'Produk tidak ditemukan' });
-        
+
         const { error: updateError } = await supabase.from('products').update({ price }).eq('id', req.params.id);
         if (updateError) throw updateError;
-        
+
         const product = mapDBToProduct({ ...productRow, price });
         await addLog(`Pembenaran harga: "${product.name}" menjadi Rp ${price.toLocaleString('id-ID')}`, 'ok');
 
@@ -551,10 +709,10 @@ api.post(
         const { data: currentSettings } = await supabase.from('settings').select('*').eq('id', 1).single();
         const settings = { ...(currentSettings ? mapDBToSettings(currentSettings) : {}), ...req.body };
         delete settings.adminPin;
-        
+
         const { error } = await supabase.from('settings').upsert(mapSettingsToDB(settings));
         if (error) throw error;
-        
+
         await addLog('Pengaturan toko/QRIS disimpan', 'ok');
         res.json({ ok: true, settings });
     })
@@ -584,17 +742,17 @@ api.put(
     wrap(async (req, res) => {
         const { data: orderRow, error: fetchError } = await supabase.from('orders').select('*, order_items(*)').eq('id', req.params.id).single();
         if (fetchError || !orderRow) return res.status(404).json({ error: 'Order tidak ditemukan' });
-        
+
         const updateData = {};
         if (req.body.paymentStatus) {
             updateData.payment_status = req.body.paymentStatus;
             if (req.body.paymentStatus === 'paid' && !orderRow.paid_at) updateData.paid_at = new Date().toISOString();
         }
         if (req.body.status) updateData.status = req.body.status;
-        
+
         const { error: updateError } = await supabase.from('orders').update(updateData).eq('id', req.params.id);
         if (updateError) throw updateError;
-        
+
         await addLog(`Status pesanan ${req.params.id}: ${updateData.payment_status || orderRow.payment_status}`, 'ok');
 
         const updatedOrderRow = { ...orderRow, ...updateData };
@@ -604,7 +762,7 @@ api.put(
         if (updateData.payment_status === 'paid' && orderRow.olsera_sync_status !== 'synced') {
             synced = await syncOrder(order);
         }
-        
+
         const { data: finalOrder } = await supabase.from('orders').select('*, order_items(*)').eq('id', req.params.id).single();
         res.json({ ok: true, order: mapDBToOrder(finalOrder), olsera: synced });
     })
@@ -615,13 +773,13 @@ api.post(
     wrap(async (req, res) => {
         const { data: orderRow, error: fetchError } = await supabase.from('orders').select('*, order_items(*)').eq('id', req.params.id).single();
         if (fetchError || !orderRow) return res.status(404).json({ error: 'Order tidak ditemukan' });
-        
+
         const updateData = { payment_status: 'paid', paid_at: new Date().toISOString() };
         await supabase.from('orders').update(updateData).eq('id', req.params.id);
-        
+
         const order = mapDBToOrder({ ...orderRow, ...updateData });
         const synced = await syncOrder(order);
-        
+
         const { data: finalOrder } = await supabase.from('orders').select('*, order_items(*)').eq('id', req.params.id).single();
         res.json({ order: mapDBToOrder(finalOrder), olsera: synced });
     })
@@ -632,12 +790,29 @@ api.post(
     wrap(async (req, res) => {
         const { data: orderRow, error: fetchError } = await supabase.from('orders').select('*, order_items(*)').eq('id', req.params.id).single();
         if (fetchError || !orderRow) return res.status(404).json({ error: 'Order tidak ditemukan' });
-        
+
         const order = mapDBToOrder(orderRow);
         const synced = await syncOrder(order);
-        
+
         const { data: finalOrder } = await supabase.from('orders').select('*, order_items(*)').eq('id', req.params.id).single();
         res.json({ ok: true, order: mapDBToOrder(finalOrder), olsera: synced });
+    })
+);
+
+/* --- Olsera (uji koneksi) --- */
+api.get(
+    '/olsera/test',
+    wrap(async (req, res) => {
+        if (typeof olsera.testConnection !== 'function') {
+            return res.json({
+                ok: false,
+                storeId: OLSERA_STORE_ID,
+                message: 'olsera-client.js belum versi terbaru (testConnection tidak ada). Ganti file lalu deploy ulang.'
+            });
+        }
+        const result = await olsera.testConnection();
+        await addLog(`Uji koneksi Olsera (store ${result.storeId}): ${result.ok ? 'berhasil ✓' : result.message}`, result.ok ? 'ok' : 'err');
+        res.json(result);
     })
 );
 
@@ -676,11 +851,11 @@ api.post(
         const code = String(req.body.code || '').trim().toUpperCase();
         const value = Number(req.body.value);
         if (!code || !(value > 0)) return res.status(400).json({ error: 'Kode dan nilai promo wajib diisi dengan benar' });
-        
+
         const promo = { ...req.body, code, value, active: req.body.active !== false };
         const { error } = await supabase.from('promos').upsert(mapPromoToDB(promo));
         if (error) throw error;
-        
+
         await addLog(`Kode promo "${code}" disimpan`, 'ok');
         res.json({ ok: true, promo });
     })
@@ -692,10 +867,10 @@ api.put(
         const code = req.params.code.toUpperCase();
         const { data: promoRow, error: fetchError } = await supabase.from('promos').select('*').eq('code', code).single();
         if (fetchError || !promoRow) return res.status(404).json({ error: 'Kode promo tidak ditemukan' });
-        
+
         const newActiveStatus = !promoRow.is_active;
         await supabase.from('promos').update({ is_active: newActiveStatus }).eq('code', code);
-        
+
         res.json({ ok: true, promo: mapDBToPromo({ ...promoRow, is_active: newActiveStatus }) });
     })
 );
@@ -716,7 +891,7 @@ api.get(
     wrap(async (req, res) => {
         const { data, error } = await supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(60);
         if (error) throw error;
-        
+
         res.json({ logs: data.map(row => ({ time: new Date(row.created_at).getTime(), level: row.level, message: row.message })) });
     })
 );
