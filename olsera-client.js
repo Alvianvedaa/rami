@@ -20,8 +20,10 @@ if (BASE_URL === 'https://api.olsera.co.id') BASE_URL = 'https://api-open.olsera
 BASE_URL = BASE_URL.replace(/\/+$/, '');
 
 const APP_ID = process.env.OLSERA_APP_ID || '';
-/* ID toko/outlet Olsera (store 773). Bisa ditimpa lewat env OLSERA_STORE_ID. */
-const STORE_ID = String(process.env.OLSERA_STORE_ID || '773');
+/* ID toko/outlet Olsera (store 733). Bisa ditimpa lewat env OLSERA_STORE_ID. */
+const STORE_ID = String(process.env.OLSERA_STORE_ID || '733');
+/* ID tipe pelanggan Olsera (opsional, ambil dari Olsera: Pelanggan > Tipe Pelanggan) */
+const CUSTOMER_TYPE_ID = String(process.env.OLSERA_CUSTOMER_TYPE_ID || '').trim();
 const SECRET_KEY = process.env.OLSERA_SECRET_KEY || process.env.OLSERA_API_KEY || 'secret';
 
 /* Endpoint */
@@ -137,19 +139,31 @@ function mapOrderToOlseraPayload(order) {
   const customer = order.customer || {};
   const tableInfo = customer.table ? `Meja ${customer.table}` : 'Takeaway';
   const payTag = `${order.paymentMethod || 'QRIS'} ${order.paymentStatus === 'paid' ? '(LUNAS)' : '(BELUM BAYAR)'}`;
-  const notes = [`Web Order ${order.id || ''}`.trim(), tableInfo, payTag, order.notes]
+  const notes = [
+    `Web Order ${order.id || ''}`.trim(),
+    tableInfo,
+    payTag,
+    customer.phone ? `WA ${customer.phone}` : '',
+    order.notes,
+  ]
     .filter(Boolean)
     .join(' | ');
 
-  return {
+  const payload = {
     order_date: (order.createdAt || new Date().toISOString()).slice(0, 10),
     currency_id: 'IDR',
     customer_name: customer.name || 'Tamu',
-    customer_phone: customer.phone || '',
-    customer_type_id: '0',
     notes,
     is_funding: '0',
   };
+
+  /* Tipe pelanggan harus ID yang ADA di Olsera. ID "0" memicu error 406
+     "Data customer type does not exist". Hanya dikirim jika OLSERA_CUSTOMER_TYPE_ID diisi. */
+  if (CUSTOMER_TYPE_ID) {
+    payload.customer_type_id = CUSTOMER_TYPE_ID;
+    if (customer.phone) payload.customer_phone = customer.phone;
+  }
+  return payload;
 }
 
 /* ------------------------------------------------------------------ */

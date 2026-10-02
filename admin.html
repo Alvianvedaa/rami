@@ -925,10 +925,10 @@
             <div class="kv">
               <span class="mu">Mode</span><b id="oMode" style="color: var(--pk)">-</b>
             </div>
-            <div class="kv"><span class="mu">Outlet ID</span><b id="oOutlet">773</b></div>
+            <div class="kv"><span class="mu">Outlet ID</span><b id="oOutlet">733</b></div>
             <div class="f" style="margin-top: 10px">
               <label for="oOutletIn">Store / Outlet ID Olsera</label>
-              <input id="oOutletIn" value="773" inputmode="numeric" placeholder="773" />
+              <input id="oOutletIn" value="733" inputmode="numeric" placeholder="733" />
             </div>
             <button class="b p sm" id="oOutletSave">Simpan Outlet ID</button>
             <div style="display: flex; gap: 8px; margin-top: 14px">
@@ -1124,7 +1124,7 @@
       (location.protocol.startsWith('http')
         ? location.origin + '/api'
         : 'http://localhost:4000/api');
-    const DEFAULT_OUTLET = '773'; // Olsera store 773
+    const DEFAULT_OUTLET = '733'; // Olsera store 733
     let P = [],
       O = [],
       PR = [],
@@ -1505,7 +1505,7 @@
     $('oOutletSave').onclick = () =>
       safe(async () => {
         const v = $('oOutletIn').value.trim();
-        if (!/^\d+$/.test(v)) throw new Error('Outlet ID harus berupa angka, contoh: 773');
+        if (!/^\d+$/.test(v)) throw new Error('Outlet ID harus berupa angka, contoh: 733');
         if (!confirm('Ubah Outlet ID menjadi ' + v + '?')) return;
         S.outletId = v;
         await saveS();
