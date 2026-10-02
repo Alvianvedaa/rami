@@ -21,6 +21,7 @@ const ADMIN_PIN = process.env.ADMIN_PIN || '220901';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'rami-coffee-default-secret-ganti-kalau-bisa';
 const ON_VERCEL = Boolean(process.env.VERCEL);
 const STORE_NAME = 'Rami Coffee & Eatery';
+const OLSERA_STORE_ID = String(process.env.OLSERA_STORE_ID || '733'); // Olsera store 733
 
 const SEED_PRODUCTS = [
     { id: 'p1', cat: 'kopi', name: 'Kopi Susu Rami', desc: 'Espresso house-blend, gula aren, susu segar.', price: 22000, icon: '☕', image: '', olsera_sku: 'RAMI-KOPISUSU' },
@@ -46,7 +47,7 @@ const SEED_SETTINGS = {
     storeName: STORE_NAME,
     qrisImage: 'qris.svg',
     merchantName: 'RAMI COFFEE & EATERY',
-    outletId: 'OUTLET-001',
+    outletId: OLSERA_STORE_ID,
     taxPercent: 10,
 };
 
@@ -247,12 +248,22 @@ function getOlsera() {
         // Kalau file/paket olsera-client bermasalah, tetap jalan pakai mode mock bawaan.
         return {
             isMockMode: () => true,
+            isConfigured: () => false,
+            getStoreId: () => OLSERA_STORE_ID,
+            testConnection: async () => ({ ok: false, mock: true, storeId: OLSERA_STORE_ID, message: 'olsera-client.js gagal dimuat' }),
             syncOrderToOlsera: async (order) => ({ olseraOrderId: `OLS-MOCK-${order.id}` }),
             syncProductPriceToOlsera: async () => ({ success: true, mode: 'mock' }),
         };
     }
 }
 const olsera = getOlsera();
+
+/* Settings lama di database masih berisi placeholder 'OUTLET-001' -> ganti ke store Olsera. */
+function withOutlet(settings) {
+    const s = { ...(settings || {}) };
+    if (!s.outletId || s.outletId === 'OUTLET-001') s.outletId = OLSERA_STORE_ID;
+    return s;
+}
 
 /* ------------------------------------------------------------------ */
 /* Autentikasi admin (token 12 jam)                                    */
@@ -293,7 +304,14 @@ app.use((req, res, next) => {
 });
 
 api.get('/health', (req, res) => {
-    res.json({ ok: true, mockMode: olsera.isMockMode(), time: new Date().toISOString(), store: STORE_NAME });
+    res.json({
+        ok: true,
+        mockMode: olsera.isMockMode(),
+        olseraConfigured: olsera.isConfigured(),
+        outletId: OLSERA_STORE_ID,
+        time: new Date().toISOString(),
+        store: STORE_NAME,
+    });
 });
 
 api.use(wrap(async (req, res, next) => {
@@ -311,7 +329,7 @@ api.get('/products', wrap(async (req, res) => {
 }));
 
 api.get('/settings', wrap(async (req, res) => {
-    res.json({ settings: (await db.get(KEY.settings)) || {}, mockMode: olsera.isMockMode() });
+    res.json({ settings: withOutlet(await db.get(KEY.settings)), mockMode: olsera.isMockMode() });
 }));
 
 api.get('/promos', wrap(async (req, res) => {
@@ -414,6 +432,12 @@ api.post('/orders/:id/resync', wrap(async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order tidak ditemukan' });
     const synced = await syncOrder(order);
     res.json({ ok: true, order: await db.hget(KEY.orders, order.id), olsera: synced });
+}));
+
+api.get('/olsera/test', wrap(async (req, res) => {
+    const result = await olsera.testConnection();
+    await addLog(`Uji koneksi Olsera (store ${result.storeId}): ${result.ok ? 'berhasil ✓' : result.message}`, result.ok ? 'ok' : 'err');
+    res.json(result);
 }));
 
 api.post('/olsera/sync-all', wrap(async (req, res) => {

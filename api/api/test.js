@@ -4,7 +4,7 @@
  * Tidak mengubah / mengimpor file backend lama. Vercel memprioritaskan file
  * spesifik ini di atas catch-all api/[...path].js.
  */
-const STORE_ID = String(process.env.OLSERA_STORE_ID || '773');
+const STORE_ID = String(process.env.OLSERA_STORE_ID || '733');
 const MOCK_MODE = (process.env.MOCK_MODE || 'true').toLowerCase() !== 'false';
 const APP_ID = process.env.OLSERA_APP_ID || '';
 const SECRET_KEY = process.env.OLSERA_SECRET_KEY || process.env.OLSERA_API_KEY || '';
