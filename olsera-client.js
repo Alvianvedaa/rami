@@ -1,387 +1,285 @@
-﻿/**
- * olsera-client.js
- * Adapter integrasi Olsera Open API POS (v1).
- * Dokumentasi: https://docs-api-open.olsera.co.id/documentation
- *
- * ALUR LENGKAP (agar order web langsung muncul & terupdate di kasir Olsera POS):
- * [1]  Auth         : POST /api/open-api/v1/id/token
- * [2]  Buat order   : POST /api/open-api/v1/en/order/openorder                    -> masuk Open Order kasir
- * [3]  Tambah item  : POST /api/open-api/v1/en/order/openorder/additem            -> isi produk ke order
- * [4a] Status bayar : POST /api/open-api/v1/en/order/openorder/updatepaymentstatus  (status=1 -> lunas)
- * [4b] Status order : POST /api/open-api/v1/en/order/openorder/updatestatus         (status=A -> konfirmasi)
- * [4c] Jurnal bayar : POST /api/open-api/v1/en/order/openorder/updatepayment        (metode + jumlah)
+/**
+ * Adapter Olsera Open API.
+ * Autentikasi: POST /api/open-api/v1/id/token (multipart/form-data).
  */
+
 require('dotenv').config();
 
 const MOCK_MODE = (process.env.MOCK_MODE || 'true').toLowerCase() !== 'false';
-
-let BASE_URL = process.env.OLSERA_API_BASE_URL || 'https://api-open.olsera.co.id';
-if (BASE_URL === 'https://api.olsera.co.id') BASE_URL = 'https://api-open.olsera.co.id';
-BASE_URL = BASE_URL.replace(/\/+$/, '');
-
+const API_BASE_URL = (
+  process.env.OLSERA_API_BASE_URL || 'https://api-open.olsera.co.id/api/open-api/v1'
+).replace(/\/+$/, '');
+const TOKEN_URL = `${API_BASE_URL}/id/token`;
 const APP_ID = process.env.OLSERA_APP_ID || '';
-/* ID toko/outlet Olsera (store 733). Bisa ditimpa lewat env OLSERA_STORE_ID. */
-const STORE_ID = String(process.env.OLSERA_STORE_ID || '733');
-/* Olsera MEWAJIBKAN customer_type_id & customer_phone saat membuat order.
-   - OLSERA_CUSTOMER_TYPE_ID : ID tipe pelanggan yang ADA di Olsera (buat tipe "Online/Web" lalu catat ID-nya)
-   - OLSERA_DEFAULT_PHONE    : nomor cadangan untuk pesanan tanpa nomor WA pelanggan */
-const CUSTOMER_TYPE_ID = String(process.env.OLSERA_CUSTOMER_TYPE_ID || '').trim();
-const DEFAULT_PHONE = String(process.env.OLSERA_DEFAULT_PHONE || '081000000000').trim();
-const SECRET_KEY = process.env.OLSERA_SECRET_KEY || process.env.OLSERA_API_KEY || 'secret';
+const APP_SECRET = process.env.OLSERA_APP_SECRET || '';
+const STORE_ID = process.env.OLSERA_STORE_ID || '';
+const OUTLET_ID = process.env.OLSERA_OUTLET_ID || '';
+const LEGACY_API_KEY = process.env.OLSERA_API_KEY || '';
+const MAX_RETRIES = positiveInteger(process.env.OLSERA_MAX_RETRIES, 3);
+const TIMEOUT_MS = positiveInteger(process.env.OLSERA_TIMEOUT_MS, 15000);
+const TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000;
 
-/* Endpoint */
-const EP = {
-  TOKEN: '/api/open-api/v1/id/token',
-  CREATE_ORDER: '/api/open-api/v1/en/order/openorder',
-  ADD_ITEM: '/api/open-api/v1/en/order/openorder/additem',
-  UPDATE_PAY_STATUS: '/api/open-api/v1/en/order/openorder/updatepaymentstatus',
-  UPDATE_STATUS: '/api/open-api/v1/en/order/openorder/updatestatus',
-  UPDATE_PAYMENT: '/api/open-api/v1/en/order/openorder/updatepayment',
-};
+let cachedAccessToken = normalizeBearerToken(process.env.OLSERA_BEARER_TOKEN || LEGACY_API_KEY);
+let cachedRefreshToken = process.env.OLSERA_REFRESH_TOKEN || '';
+let cachedTokenExpiresAt = getJwtExpiryMs(cachedAccessToken);
+let tokenRequestInFlight = null;
 
-/* Mapping metode bayar -> payment_mode_id Olsera (sesuaikan dgn akun Olsera Anda) */
-const PAYMENT_MODE_IDS = {
-  'QRIS': '589969',
-  'GOPAY': '589969',
-  'BAYAR DI TEMPAT': '1',
-  'CASH': '1',
-  'TUNAI': '1',
-  'DEBIT': '1',
-  'BRI': '572254',
-  'BCA': '572255',
-};
-
-let cachedToken = null;
-let tokenExpiresAt = 0;
-
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-class OlseraConfigError extends Error {
-  constructor(m) { super(m); this.name = 'OlseraConfigError'; }
-}
-class OlseraSyncError extends Error {
-  constructor(m) { super(m); this.name = 'OlseraSyncError'; }
+function positiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value || '', 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-/* ------------------------------------------------------------------ */
-/* [1] AUTENTIKASI                                                     */
-/* ------------------------------------------------------------------ */
-async function getAccessToken() {
-  const now = Date.now();
-  if (cachedToken && tokenExpiresAt > now + 60000) return cachedToken;
+function normalizeBearerToken(token) {
+  return String(token || '').trim().replace(/^Bearer\s+/i, '');
+}
 
-  const res = await fetch(`${BASE_URL}${EP.TOKEN}`, {
+function getJwtExpiryMs(token) {
+  if (!token) return 0;
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return 0;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const decoded = JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+    return Number(decoded.exp) > 0 ? Number(decoded.exp) * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function isCachedTokenUsable() {
+  if (!cachedAccessToken) return false;
+  return !cachedTokenExpiresAt || cachedTokenExpiresAt - Date.now() > TOKEN_REFRESH_SKEW_MS;
+}
+
+function createAbortSignal(timeoutMs = TIMEOUT_MS) {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(timeoutMs);
+  }
+  return undefined;
+}
+
+async function parseResponse(res) {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+}
+
+function safeApiError(status, data, fallback) {
+  const message = data?.message || data?.error?.message || data?.error || fallback;
+  return `${status ? `HTTP ${status}: ` : ''}${String(message || 'Olsera API error')}`;
+}
+
+async function requestToken(grantType, credential) {
+  const form = new FormData();
+  form.append('grant_type', grantType);
+  if (grantType === 'refresh_token') {
+    form.append('refresh_token', credential);
+  } else {
+    form.append('app_id', APP_ID);
+    form.append('secret_key', APP_SECRET);
+  }
+
+  const res = await fetch(TOKEN_URL, {
     method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      app_id: APP_ID,
-      secret_key: SECRET_KEY,
-      grant_type: 'secret_key',
-    }).toString(),
+    headers: { Accept: 'application/json' },
+    body: form,
+    signal: createAbortSignal(),
   });
-
-  const data = await res.json().catch(() => ({}));
+  const data = await parseResponse(res);
   if (!res.ok || !data.access_token) {
-    throw new OlseraSyncError(
-      `[Olsera] Gagal auth (${res.status}): ${JSON.stringify(data).slice(0, 300)}`
+    throw new OlseraAuthError(safeApiError(res.status, data, 'Gagal memperoleh token Olsera'));
+  }
+
+  cachedAccessToken = normalizeBearerToken(data.access_token);
+  cachedRefreshToken = data.refresh_token || cachedRefreshToken;
+  cachedTokenExpiresAt = getJwtExpiryMs(cachedAccessToken)
+    || (Number(data.expires_in) > 0 ? Date.now() + Number(data.expires_in) * 1000 : 0);
+  return cachedAccessToken;
+}
+
+async function obtainFreshToken() {
+  if (cachedRefreshToken) {
+    try {
+      return await requestToken('refresh_token', cachedRefreshToken);
+    } catch {
+      cachedRefreshToken = '';
+    }
+  }
+  if (!APP_ID || !APP_SECRET) {
+    throw new OlseraConfigError(
+      'OLSERA_APP_ID dan OLSERA_APP_SECRET wajib diisi untuk memperbarui token Olsera otomatis'
     );
   }
-
-  cachedToken = data.access_token;
-  tokenExpiresAt = now + Number(data.expires_in || 86400) * 1000;
-  return cachedToken;
+  return requestToken('secret_key');
 }
 
-/* ------------------------------------------------------------------ */
-/* HELPER: POST ke Olsera dengan retry (hanya untuk 5xx / 429 / network) */
-/* ------------------------------------------------------------------ */
-async function olseraPost(endpoint, params, token, stepName) {
-  const url = `${BASE_URL}${endpoint}`;
-  const label = `[Olsera][${stepName}]`;
-  let lastErr = '';
-
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    let res;
-    try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams(params).toString(),
-      });
-    } catch (err) {
-      // error jaringan -> coba ulang
-      lastErr = err.message;
-      if (attempt < 3) { await sleep(500 * attempt); continue; }
-      throw new OlseraSyncError(`${label} gagal setelah 3 percobaan: ${lastErr}`);
-    }
-
-    const json = await res.json().catch(() => ({}));
-
-    if (res.ok) return json;
-
-    lastErr = `${label} (${res.status}): ${JSON.stringify(json).slice(0, 300)}`;
-    const retryable = res.status >= 500 || res.status === 429;
-    if (retryable && attempt < 3) { await sleep(500 * attempt); continue; }
-    throw new OlseraSyncError(lastErr); // 4xx -> tidak di-retry
-  }
-
-  throw new OlseraSyncError(lastErr || `${label} gagal`);
+async function getAccessToken({ forceRefresh = false } = {}) {
+  if (!forceRefresh && isCachedTokenUsable()) return cachedAccessToken;
+  if (tokenRequestInFlight) return tokenRequestInFlight;
+  tokenRequestInFlight = obtainFreshToken().finally(() => {
+    tokenRequestInFlight = null;
+  });
+  return tokenRequestInFlight;
 }
 
-/* ------------------------------------------------------------------ */
-/* FORMAT PAYLOAD ORDER                                                */
-/* ------------------------------------------------------------------ */
-function mapOrderToOlseraPayload(order) {
-  const customer = order.customer || {};
-  const tableInfo = customer.table ? `Meja ${customer.table}` : 'Takeaway';
-  const payTag = `${order.paymentMethod || 'QRIS'} ${order.paymentStatus === 'paid' ? '(LUNAS)' : '(BELUM BAYAR)'}`;
-  const notes = [
-    `Web Order ${order.id || ''}`.trim(),
-    tableInfo,
-    payTag,
-    customer.phone ? `WA ${customer.phone}` : '',
-    order.notes,
-  ]
-    .filter(Boolean)
-    .join(' | ');
-
-  const payload = {
-    order_date: (order.createdAt || new Date().toISOString()).slice(0, 10),
-    currency_id: 'IDR',
-    customer_name: customer.name || 'Tamu',
-    customer_type_id: CUSTOMER_TYPE_ID,
-    customer_phone: String(customer.phone || '').replace(/[^\d+]/g, '') || DEFAULT_PHONE,
-    notes,
-    is_funding: '0',
+async function olseraFetch(path, options = {}, allowAuthRetry = true) {
+  const token = await getAccessToken();
+  const headers = {
+    Accept: 'application/json',
+    ...options.headers,
+    Authorization: `Bearer ${token}`,
   };
-  return payload;
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers,
+    signal: options.signal || createAbortSignal(),
+  });
+  if (res.status === 401 && allowAuthRetry) {
+    await getAccessToken({ forceRefresh: true });
+    return olseraFetch(path, options, false);
+  }
+  return res;
 }
 
-/* ------------------------------------------------------------------ */
-/* [2]+[3]+[4] SYNC ORDER BARU                                         */
-/* ------------------------------------------------------------------ */
+function getAuthStatus() {
+  return {
+    mockMode: MOCK_MODE,
+    configured: Boolean(APP_ID && APP_SECRET),
+    hasAccessToken: Boolean(cachedAccessToken),
+    hasRefreshToken: Boolean(cachedRefreshToken),
+    tokenExpiresAt: cachedTokenExpiresAt ? new Date(cachedTokenExpiresAt).toISOString() : null,
+    apiBaseUrl: API_BASE_URL,
+    storeIdConfigured: Boolean(STORE_ID),
+    outletIdConfigured: Boolean(OUTLET_ID),
+  };
+}
+
+/** Payload order lama dipertahankan sementara. Kontrak Open Order Olsera harus
+ * dipetakan terpisah sebelum integrasi order diubah ke mode live. */
+function mapOrderToOlseraPayload(order) {
+  return {
+    outlet_id: OUTLET_ID || null,
+    store_id: STORE_ID || null,
+    external_order_id: order.id,
+    order_type: order.fulfillment === 'dine-in' ? 'dine_in' : 'take_away',
+    status: order.paymentStatus === 'paid' ? 'completed' : 'pending',
+    customer: {
+      name: order.customer?.name || 'Tamu',
+      phone: order.customer?.phone || null,
+    },
+    payment: {
+      method: order.paymentMethod || 'QRIS',
+      status: order.paymentStatus || 'paid',
+      amount_paid: Number(order.total) || 0,
+      payment_ref: order.paymentRef || (order.paymentMethod === 'QRIS' ? `QRIS-${order.id}` : null),
+      paid_at: order.paymentStatus === 'paid' ? (order.paidAt || new Date().toISOString()) : null,
+    },
+    discount: {
+      code: order.promoCode || null,
+      amount: Number(order.discount) || 0,
+    },
+    items: (order.items || []).map((item) => ({
+      sku: item.olsera_sku || item.id,
+      name: item.name,
+      qty: Number(item.qty) || 1,
+      unit_price: Number(item.price) || 0,
+      subtotal: (Number(item.price) || 0) * (Number(item.qty) || 1),
+    })),
+    subtotal: Number(order.subtotal) || 0,
+    tax: Number(order.tax) || 0,
+    total: Number(order.total) || 0,
+    note: `Pesan online Rami Storefront | Metode: ${order.paymentMethod} | Status: ${order.paymentStatus || 'paid'}`,
+    created_at: order.createdAt || new Date().toISOString(),
+  };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function syncOrderToOlsera(order) {
   if (MOCK_MODE) return mockSync(order);
-  if (!BASE_URL || !APP_ID) {
-    throw new OlseraConfigError('OLSERA_API_BASE_URL dan OLSERA_APP_ID wajib diisi di .env');
+  if (!OUTLET_ID) {
+    throw new OlseraConfigError('OLSERA_OUTLET_ID wajib diverifikasi sebelum sinkronisasi order live');
   }
 
-  if (!CUSTOMER_TYPE_ID) {
-    throw new OlseraConfigError(
-      'OLSERA_CUSTOMER_TYPE_ID belum diisi di env Vercel (Olsera mewajibkan tipe pelanggan pada order).'
-    );
-  }
-
-  const token = await getAccessToken();
-
-  /* [2] Buat Open Order -> langsung masuk kasir POS */
-  const createData = await olseraPost(EP.CREATE_ORDER, mapOrderToOlseraPayload(order), token, 'CreateOrder');
-  if (!createData.data || !createData.data.id) {
-    throw new OlseraSyncError(
-      `[Olsera][CreateOrder] Tidak ada order id: ${JSON.stringify(createData).slice(0, 300)}`
-    );
-  }
-  const olseraOrderId = String(createData.data.id);
-  const orderNo = createData.data.order_no || olseraOrderId;
-  console.log(`[Olsera] Order dibuat: olseraOrderId=${olseraOrderId}, orderNo=${orderNo}`);
-
-  /* [3] Tambah item produk */
-  let itemResult = { added: 0, skipped: 0 };
-  if (Array.isArray(order.items) && order.items.length > 0) {
-    itemResult = await addItemsToOlseraOrder(olseraOrderId, order.items, token);
-  }
-
-  /* [4] Update status bayar, status order & jurnal pembayaran jika sudah lunas */
-  let paymentResult = null;
-  if (order.paymentStatus === 'paid') {
-    paymentResult = await markOrderAsPaidInOlsera(olseraOrderId, order, token);
-  }
-
-  return {
-    success: true,
-    olseraOrderId,
-    orderNo,
-    items: itemResult,
-    payment: paymentResult,
-    raw: createData,
-  };
-}
-
-/* ------------------------------------------------------------------ */
-/* [3] TAMBAH ITEM                                                     */
-/* ------------------------------------------------------------------ */
-async function addItemsToOlseraOrder(olseraOrderId, items, token) {
-  const authToken = token || (await getAccessToken());
-  let added = 0;
-  let skipped = 0;
-
-  for (const item of items) {
-    const prodId = item.olsera_sku || item.sku || item.id;
-
-    // Format valid: "12345" atau "12345|678" (produk|varian)
-    if (!prodId || !/^\d+(\|\d+)?$/.test(String(prodId))) {
-      console.warn(`[Olsera][AddItem] Lewati "${item.name || prodId}" — olsera_sku tidak valid: ${prodId}`);
-      skipped++;
-      continue;
-    }
-
+  const payload = mapOrderToOlseraPayload(order);
+  let lastError;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
     try {
-      await olseraPost(EP.ADD_ITEM, {
-        order_id: String(olseraOrderId),
-        item_products: String(prodId),
-        item_qty: String(item.qty || 1),
-      }, authToken, `AddItem[${prodId}]`);
-      added++;
-      console.log(`[Olsera][AddItem] ${item.name || prodId} qty=${item.qty || 1} OK`);
+      const res = await olseraFetch('/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Outlet-ID': OUTLET_ID },
+        body: JSON.stringify(payload),
+      });
+      const raw = await parseResponse(res);
+      if (!res.ok) throw new Error(safeApiError(res.status, raw, 'Gagal mengirim order'));
+      return {
+        success: true,
+        attempt,
+        olseraOrderId: raw.id || raw.order_id || `OLS-${Date.now()}`,
+        raw,
+      };
     } catch (err) {
-      skipped++;
-      console.warn(`[Olsera][AddItem] Gagal ${item.name || prodId}: ${err.message}`);
+      lastError = err;
+      if (attempt < MAX_RETRIES) await sleep(400 * attempt);
     }
   }
-
-  console.log(`[Olsera][AddItem] Selesai: ${added} berhasil, ${skipped} dilewati`);
-  return { added, skipped };
+  throw new OlseraSyncError(
+    `Gagal sinkron order ${order.id} ke Olsera setelah ${MAX_RETRIES} percobaan: ${lastError?.message}`
+  );
 }
 
-/* ------------------------------------------------------------------ */
-/* [4] TANDAI LUNAS DI KASIR (3 sub-endpoint)                          */
-/* ------------------------------------------------------------------ */
-async function markOrderAsPaidInOlsera(olseraOrderId, order, existingToken) {
-  if (MOCK_MODE) {
-    console.log(`[Olsera][MOCK] markOrderAsPaidInOlsera id=${olseraOrderId}`);
-    return { success: true, mode: 'mock' };
-  }
-
-  const token = existingToken || (await getAccessToken());
-  const errors = [];
-
-  /* [4a] updatepaymentstatus status=1 (Lunas) */
-  try {
-    await olseraPost(EP.UPDATE_PAY_STATUS, {
-      order_id: String(olseraOrderId),
-      status: '1',
-    }, token, 'UpdatePayStatus');
-    console.log(`[Olsera][UpdatePayStatus] ${olseraOrderId} -> status=1 (Lunas) OK`);
-  } catch (err) {
-    console.error(`[Olsera][UpdatePayStatus] Gagal: ${err.message}`);
-    errors.push(`updatepaymentstatus: ${err.message}`);
-  }
-
-  /* [4b] updatestatus status=A (Confirmed) */
-  try {
-    await olseraPost(EP.UPDATE_STATUS, {
-      order_id: String(olseraOrderId),
-      status: 'A',
-    }, token, 'UpdateOrderStatus');
-    console.log(`[Olsera][UpdateOrderStatus] ${olseraOrderId} -> status=A (Confirmed) OK`);
-  } catch (err) {
-    console.error(`[Olsera][UpdateOrderStatus] Gagal: ${err.message}`);
-    errors.push(`updatestatus: ${err.message}`);
-  }
-
-  /* [4c] updatepayment (jurnal nominal & metode) */
-  const total = Number((order && order.total) || 0);
-  if (total > 0) {
-    try {
-      const methodUpper = String((order && order.paymentMethod) || 'QRIS').toUpperCase().trim();
-      const modeId = PAYMENT_MODE_IDS[methodUpper] || PAYMENT_MODE_IDS['QRIS'];
-      const payDate = ((order && order.paidAt) ? order.paidAt : new Date().toISOString()).slice(0, 10);
-      const payRef = (order && order.paymentRef) || `PAY-${olseraOrderId}`;
-
-      await olseraPost(EP.UPDATE_PAYMENT, {
-        order_id: String(olseraOrderId),
-        payment_amount: String(total),
-        payment_currency_id: 'IDR',
-        payment_date: payDate,
-        payment_mode_id: String(modeId),
-        payment_payee: (order && order.customer && order.customer.name) || 'Tamu',
-        payment_ref: payRef,
-        payment_seq: '1',
-      }, token, 'UpdatePayment');
-      console.log(`[Olsera][UpdatePayment] Rp${total} via ${methodUpper} modeId=${modeId} OK`);
-    } catch (err) {
-      console.error(`[Olsera][UpdatePayment] Gagal: ${err.message}`);
-      errors.push(`updatepayment: ${err.message}`);
-    }
-  }
-
-  if (errors.length > 0) {
-    console.warn(`[Olsera] markOrderAsPaidInOlsera selesai dengan peringatan: ${errors.join(' | ')}`);
-    return { success: true, warnings: errors };
-  }
-  return { success: true };
-}
-
-/* ------------------------------------------------------------------ */
-/* SINKRON HARGA PRODUK (placeholder)                                  */
-/* ------------------------------------------------------------------ */
 async function syncProductPriceToOlsera(product) {
   if (MOCK_MODE) {
-    return { success: true, mode: 'mock', message: `[MOCK] Produk ${product && product.name} disinkronkan` };
+    return {
+      success: true,
+      mode: 'mock',
+      message: `[MOCK] Harga produk ${product.name} (${product.id}) berhasil disinkronkan ke Olsera: Rp ${product.price.toLocaleString('id-ID')}`,
+    };
   }
-  return { success: true, message: `Produk ${product && product.name} dicatat` };
+  try {
+    const res = await olseraFetch(`/products/${encodeURIComponent(product.olsera_sku || product.id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ price: product.price, name: product.name, description: product.desc }),
+    });
+    const data = await parseResponse(res);
+    if (!res.ok) throw new Error(safeApiError(res.status, data, 'Gagal memperbarui produk'));
+    return { success: true, data };
+  } catch (err) {
+    if (err instanceof OlseraConfigError) throw err;
+    throw new OlseraSyncError(`Gagal sync harga ke Olsera: ${err.message}`);
+  }
 }
 
-/* ------------------------------------------------------------------ */
-/* MOCK                                                                */
-/* ------------------------------------------------------------------ */
 async function mockSync(order) {
-  await sleep(350 + Math.random() * 250);
-  const stamp = Date.now();
-  const fakeId = `OLS-MOCK-${stamp}`;
-  console.log(`[Olsera][MOCK] order=${order && order.id} fakeId=${fakeId}`);
+  await sleep(400 + Math.random() * 300);
   return {
     success: true,
-    olseraOrderId: fakeId,
-    orderNo: `OL-MOCK-${stamp}`,
-    raw: { mode: 'mock', syncedAt: new Date().toISOString() },
+    attempt: 1,
+    olseraOrderId: `OLS-MOCK-${order.id}`,
+    raw: { mode: 'mock', syncedAt: new Date().toISOString(), payload: mapOrderToOlseraPayload(order) },
   };
 }
 
-/* ------------------------------------------------------------------ */
-/* UJI KONEKSI (dipakai tombol "Uji koneksi" di dashboard admin)        */
-/* ------------------------------------------------------------------ */
-function isConfigured() {
-  return Boolean(APP_ID) && Boolean(process.env.OLSERA_SECRET_KEY || process.env.OLSERA_API_KEY);
-}
-
-async function testConnection() {
-  const base = { storeId: STORE_ID, mock: MOCK_MODE, configured: isConfigured() };
-  if (MOCK_MODE) {
-    return { ...base, ok: false, message: 'Masih MOCK_MODE. Set env MOCK_MODE=false di Vercel lalu redeploy.' };
-  }
-  if (!base.configured) {
-    return { ...base, ok: false, message: 'OLSERA_APP_ID dan OLSERA_SECRET_KEY belum diisi di env Vercel.' };
-  }
-  try {
-    cachedToken = null; // paksa minta token baru agar benar-benar teruji
-    tokenExpiresAt = 0;
-    await getAccessToken();
-    const warn = CUSTOMER_TYPE_ID ? '' : ' PERINGATAN: OLSERA_CUSTOMER_TYPE_ID belum diisi, pesanan akan ditolak Olsera.';
-    return { ...base, ok: true, message: `Terhubung ke Olsera (store ${STORE_ID}).${warn}` };
-  } catch (err) {
-    return { ...base, ok: false, message: err.message };
-  }
-}
+class OlseraSyncError extends Error {}
+class OlseraConfigError extends Error {}
+class OlseraAuthError extends Error {}
 
 module.exports = {
-  testConnection,
-  isConfigured,
-  getStoreId: () => STORE_ID,
   syncOrderToOlsera,
-  addItemsToOlseraOrder,
-  markOrderAsPaidInOlsera,
   syncProductPriceToOlsera,
   mapOrderToOlseraPayload,
   getAccessToken,
+  getAuthStatus,
   OlseraSyncError,
   OlseraConfigError,
+  OlseraAuthError,
   isMockMode: () => MOCK_MODE,
 };
