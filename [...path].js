@@ -134,6 +134,10 @@ function createSupabaseStore() {
     const parseJson = (v) => (typeof v === 'string' ? JSON.parse(v) : v);
 
     return {
+        // Query mentah (dipakai untuk memeriksa akun admin di auth.users)
+        async query(sql, params) {
+            return pool.query(sql, params);
+        },
         async hgetall(key) {
             const t = HASH_TABLES[key];
             if (!t) return null;
@@ -285,6 +289,43 @@ function requireAdmin(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
 }
 
+/**
+ * Verifikasi akun admin Supabase (email + password).
+ * 1) Jika SUPABASE_URL & SUPABASE_ANON_KEY diisi -> pakai Supabase Auth (disarankan).
+ * 2) Jika tidak, dan DATABASE_URL tersedia -> cocokkan langsung ke auth.users.
+ * Akun harus punya role "admin" (lihat supabase-admin-setup.sql).
+ */
+async function verifyAdminUser(email, password) {
+    try {
+        const url = process.env.SUPABASE_URL;
+        const key = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+        if (url && key) {
+            const r = await fetch(`${url.replace(/\/+$/, '')}/auth/v1/token?grant_type=password`, {
+                method: 'POST',
+                headers: { apikey: key, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password }),
+            });
+            if (!r.ok) return null;
+            const d = await r.json();
+            return d.user && d.user.app_metadata && d.user.app_metadata.role === 'admin' ? d.user : null;
+        }
+        if (typeof db.query === 'function') {
+            const { rows } = await db.query(
+                `SELECT id, email FROM auth.users
+                 WHERE lower(email) = lower($1)
+                   AND raw_app_meta_data ->> 'role' = 'admin'
+                   AND encrypted_password = crypt($2, encrypted_password)
+                 LIMIT 1`,
+                [email, password]
+            );
+            return rows[0] || null;
+        }
+    } catch (err) {
+        console.error('Verifikasi admin gagal:', err.message);
+    }
+    return null;
+}
+
 /* ------------------------------------------------------------------ */
 /* App                                                                  */
 /* ------------------------------------------------------------------ */
@@ -303,29 +344,54 @@ app.use((req, res, next) => {
     next();
 });
 
-api.get('/health', (req, res) => {
+api.get('/health', wrap(async (req, res) => {
+    const storage = typeof db.query === 'function' ? 'supabase' : 'memory';
+    let dbOk = storage === 'memory';
+    let dbError = null;
+    if (storage === 'supabase') {
+        try { await db.query('SELECT 1'); dbOk = true; } catch (e) { dbError = e.message; }
+    }
     res.json({
         ok: true,
+        storage,
+        dbOk,
+        dbError,
         mockMode: olsera.isMockMode(),
         olseraConfigured: olsera.isConfigured(),
         outletId: OLSERA_STORE_ID,
         time: new Date().toISOString(),
         store: STORE_NAME,
     });
-});
+}));
 
 api.use(wrap(async (req, res, next) => {
     await ensureSeeded();
     next();
 }));
 
-api.post('/login', (req, res) => {
-    if (String((req.body || {}).pin || '') !== ADMIN_PIN) return res.status(401).json({ error: 'PIN salah' });
-    res.json({ token: signToken() });
-});
+api.post('/login', wrap(async (req, res) => {
+    const { email, password, pin } = req.body || {};
+    if (email && password) {
+        const user = await verifyAdminUser(String(email).trim(), String(password));
+        if (!user) return res.status(401).json({ error: 'Email/password salah atau akun bukan admin' });
+        await addLog(`Admin masuk: ${user.email}`, 'ok');
+        return res.json({ token: signToken() });
+    }
+    // Cadangan: PIN lama tetap berfungsi
+    if (pin && String(pin) === ADMIN_PIN) return res.json({ token: signToken() });
+    return res.status(401).json({ error: 'Email/password salah atau akun bukan admin' });
+}));
+
+// Mode penyimpanan: 'supabase' = permanen, 'memory' = hilang saat server restart / beda instance
+const STORAGE_MODE = typeof db.query === 'function' ? 'supabase' : 'memory';
+
+
 
 api.get('/products', wrap(async (req, res) => {
-    res.json({ products: (await listAll(KEY.products)).sort((a, b) => a.name.localeCompare(b.name)) });
+    res.json({
+        storage: STORAGE_MODE,
+        products: (await listAll(KEY.products)).sort((a, b) => a.name.localeCompare(b.name)),
+    });
 }));
 
 api.get('/settings', wrap(async (req, res) => {
@@ -363,6 +429,15 @@ api.post('/orders', wrap(async (req, res) => {
     if (!customer || !customer.name) return res.status(400).json({ error: 'customer.name wajib diisi' });
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'items tidak boleh kosong' });
     if (typeof total !== 'number' || total <= 0) return res.status(400).json({ error: 'total tidak valid' });
+
+    // Tolak pesanan berisi menu yang sedang ditutup (Out of stock)
+    const catalog = await listAll(KEY.products);
+    const closedItems = items
+        .map((i) => catalog.find((p) => p.id === i.id))
+        .filter((p) => p && p.available === false);
+    if (closedItems.length) {
+        return res.status(409).json({ error: `Menu sedang Out of stock: ${closedItems.map((p) => p.name).join(', ')}` });
+    }
 
     const id = req.body.id || `RAMI-${Date.now().toString(36).toUpperCase()}`;
     const paymentStatus = req.body.paymentStatus || (req.body.paymentMethod === 'Bayar di tempat' ? 'unpaid' : 'paid');

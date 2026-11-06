@@ -773,6 +773,7 @@
         <div class="mu" id="vs"></div>
       </div>
       <div>
+        <button class="b sm" id="notifBtn" title="Pengaturan suara notifikasi">🔔 Suara</button>
         <div class="pos" id="posBadge"><i></i><span id="posTxt">Memeriksa...</span></div>
         <button class="b sm" id="refresh">↻ Segarkan</button>
       </div>
@@ -1106,6 +1107,50 @@
     </div>
   </div>
 
+  <div class="ov" id="nm">
+    <div class="box" style="max-width: 430px">
+      <h3 style="margin-bottom: 4px">Suara notifikasi pesanan</h3>
+      <p class="mu" style="margin-bottom: 14px">Berbunyi saat ada pesanan baru masuk.</p>
+      <div class="f">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:.85rem;color:var(--tx)">
+          <input type="checkbox" id="nOn" style="width:auto" /> Aktifkan suara notifikasi
+        </label>
+      </div>
+      <div class="f">
+        <label>Pilih nada</label>
+        <select id="nSound">
+          <option value="bell">Bel kasir</option>
+          <option value="chime">Chime lembut</option>
+          <option value="dingdong">Ding-dong</option>
+          <option value="alarm">Alarm (keras)</option>
+          <option value="beep">Beep</option>
+          <option value="custom">Suara sendiri (upload)</option>
+        </select>
+      </div>
+      <div class="f" id="nCustomWrap" style="display:none">
+        <label>Upload suara (MP3 / WAV, maks 1 MB)</label>
+        <input type="file" id="nFile" accept="audio/*" />
+        <div class="mu" id="nFileName" style="margin-top:6px"></div>
+      </div>
+      <div class="f">
+        <label>Volume: <span id="nVolTxt">70%</span></label>
+        <input type="range" id="nVol" min="0" max="100" value="70" style="padding:0" />
+      </div>
+      <div class="f">
+        <label>Ulangi bunyi</label>
+        <select id="nRepeat">
+          <option value="1">1 kali</option>
+          <option value="2">2 kali</option>
+          <option value="3">3 kali</option>
+        </select>
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: space-between">
+        <button class="b" id="nTest">▶ Tes suara</button>
+        <button class="b p" data-x>Selesai</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toasts"></div>
 
   <script>
@@ -1283,20 +1328,92 @@
     }
     const BASE_TITLE = document.title;
     let seenIds = null;
-    function beep() {
-      try {
-        const c = new (window.AudioContext || window.webkitAudioContext)(),
-          o = c.createOscillator(),
-          g = c.createGain();
-        o.connect(g);
-        g.connect(c.destination);
-        o.frequency.value = 880;
-        g.gain.setValueAtTime(0.15, c.currentTime);
-        o.start();
-        o.stop(c.currentTime + 0.3);
-        setTimeout(() => c.close(), 500);
-      } catch (_) { }
+    /* ---- Suara notifikasi (bisa diubah, disimpan di browser ini) ---- */
+    const NK = 'rami_notif_settings';
+    const NDEF = { on: true, sound: 'bell', volume: 70, repeat: 1, custom: '', customName: '' };
+    let N = Object.assign({}, NDEF);
+    try { N = Object.assign(N, JSON.parse(localStorage.getItem(NK) || '{}')); } catch (_) { }
+    const saveN = () => {
+      try { localStorage.setItem(NK, JSON.stringify(N)); }
+      catch (_) { toast('Gagal menyimpan (suara terlalu besar?)', 'error'); }
+    };
+    // Pola nada: [frekuensi Hz, mulai detik, durasi detik, tipe gelombang]
+    const TONES = {
+      bell: [[1318, 0, .5, 'sine'], [1760, .12, .7, 'sine']],
+      chime: [[523, 0, .35, 'sine'], [659, .18, .35, 'sine'], [784, .36, .6, 'sine']],
+      dingdong: [[880, 0, .45, 'triangle'], [660, .5, .7, 'triangle']],
+      alarm: [[900, 0, .18, 'square'], [700, .2, .18, 'square'], [900, .4, .18, 'square'], [700, .6, .18, 'square']],
+      beep: [[880, 0, .3, 'sine']],
+    };
+    function playOnce(vol) {
+      return new Promise((resolve) => {
+        if (N.sound === 'custom' && N.custom) {
+          const a = new Audio(N.custom);
+          a.volume = vol;
+          a.onended = resolve;
+          a.onerror = resolve;
+          a.play().catch(resolve);
+          return;
+        }
+        try {
+          const c = new (window.AudioContext || window.webkitAudioContext)();
+          const pat = TONES[N.sound] || TONES.bell;
+          let end = 0;
+          pat.forEach(([f, st, d, type]) => {
+            const o = c.createOscillator(), g = c.createGain();
+            o.type = type;
+            o.frequency.value = f;
+            o.connect(g);
+            g.connect(c.destination);
+            const t0 = c.currentTime + st;
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol * 0.5), t0 + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+            o.start(t0);
+            o.stop(t0 + d + 0.05);
+            end = Math.max(end, st + d);
+          });
+          setTimeout(() => { c.close(); resolve(); }, (end + 0.2) * 1000);
+        } catch (_) { resolve(); }
+      });
     }
+    async function beep(force) {
+      if (!N.on && !force) return;
+      const vol = Math.min(1, Math.max(0, N.volume / 100));
+      for (let i = 0; i < (Number(N.repeat) || 1); i++) {
+        await playOnce(vol);
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+    function nSync() {
+      $('nOn').checked = !!N.on;
+      $('nSound').value = N.sound;
+      $('nVol').value = N.volume;
+      $('nVolTxt').textContent = N.volume + '%';
+      $('nRepeat').value = String(N.repeat);
+      $('nCustomWrap').style.display = N.sound === 'custom' ? 'block' : 'none';
+      $('nFileName').textContent = N.customName ? 'File: ' + N.customName : 'Belum ada file';
+    }
+    $('notifBtn').onclick = () => { nSync(); $('nm').classList.add('on'); };
+    $('nOn').onchange = (e) => { N.on = e.target.checked; saveN(); };
+    $('nSound').onchange = (e) => {
+      N.sound = e.target.value;
+      if (N.sound === 'custom' && !N.custom) toast('Upload file suara dulu', 'error');
+      saveN(); nSync(); beep(true);
+    };
+    $('nVol').oninput = (e) => { N.volume = Number(e.target.value); $('nVolTxt').textContent = N.volume + '%'; };
+    $('nVol').onchange = saveN;
+    $('nRepeat').onchange = (e) => { N.repeat = Number(e.target.value); saveN(); };
+    $('nFile').onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      if (f.size > 1024 * 1024) { toast('File terlalu besar (maks 1 MB)', 'error'); return; }
+      N.custom = await readFile(f);
+      N.customName = f.name;
+      N.sound = 'custom';
+      saveN(); nSync(); beep(true);
+    };
+    $('nTest').onclick = () => beep(true);
     window.addEventListener('focus', () => { document.title = BASE_TITLE; });
     async function getO() {
       O = (await api('/orders')).orders || [];
@@ -1354,7 +1471,7 @@
       $('mPaid').textContent = paid.length + ' pesanan lunas';
       $('mOrd').textContent = td.length;
       $('mPend').textContent = td.length - paid.length + ' menunggu pembayaran';
-      $('mProd').textContent = P.length;
+      $('mProd').textContent = P.filter((x) => x.available !== false).length;
     }
 
     /* ---- Menu ---- */
@@ -1371,10 +1488,10 @@
             (
               p,
             ) => `<tr><td><div class="th">${p.image ? `<img src="${esc(p.image)}" alt="">` : esc(p.icon || '☕')}</div></td>
-  <td><b>${esc(p.name)}</b><div class="mu">${esc(p.desc || 'Tanpa deskripsi')}</div></td><td><span class="bg ${esc(p.cat || 'kopi')}">${esc(p.cat || 'menu')}</span></td>
+  <td><b>${esc(p.name)}</b> ${p.available === false ? '<span class="bg er">Ditutup · Out of stock</span>' : '<span class="bg ok">Buka</span>'}<div class="mu">${esc(p.desc || 'Tanpa deskripsi')}</div></td><td><span class="bg ${esc(p.cat || 'kopi')}">${esc(p.cat || 'menu')}</span></td>
   <td><code style="color:var(--pk)">${esc(p.olsera_sku || '-')}</code></td>
   <td><div class="pe"><input type="number" class="pi" id="pr_${esc(p.id)}" value="${Number(p.price)}" min="0" step="500"><button class="b p sm" data-a="price" data-id="${esc(p.id)}">Simpan</button></div></td>
-  <td style="white-space:nowrap"><button class="b sm" data-a="edit" data-id="${esc(p.id)}">Edit</button> <button class="b d sm" data-a="del" data-id="${esc(p.id)}">Hapus</button></td></tr>`,
+  <td style="white-space:nowrap"><button class="b sm ${p.available === false ? 'g' : ''}" data-a="toggle" data-id="${esc(p.id)}">${p.available === false ? '🟢 Buka' : '🔴 Tutup'}</button> <button class="b sm" data-a="edit" data-id="${esc(p.id)}">Edit</button> <button class="b d sm" data-a="del" data-id="${esc(p.id)}">Hapus</button></td></tr>`,
           )
           .join('')
         : '<tr><td colspan="6" class="em">Belum ada menu. Klik “Tambah menu” untuk mulai.</td></tr>';
@@ -1386,6 +1503,20 @@
         a = b.dataset.a,
         p = P.find((x) => x.id === id);
       if (a === 'edit') return pmOpen(id);
+      if (a === 'toggle')
+        return safe(async () => {
+          const next = p.available === false; // true = buka, false = tutup
+          b.disabled = true;
+          try {
+            await api('/products', 'POST', { ...p, available: next });
+          } finally {
+            b.disabled = false;
+          }
+          p.available = next;
+          rP();
+          metrics();
+          toast(`"${p.name}" ${next ? 'dibuka kembali' : 'ditutup (Out of stock di storefront)'}`);
+        });
       if (a === 'price')
         safe(async () => {
           const v = Number($('pr_' + id).value);
@@ -1459,8 +1590,10 @@
           let image = $('pmImg').value;
           if (image.startsWith('data:image'))
             image = (await api('/upload', 'POST', { imageBase64: image })).url;
+          const ex = P.find((x) => x.id === $('pmId').value);
           await api('/products', 'POST', {
             id: $('pmId').value || undefined,
+            available: ex ? ex.available !== false : true,
             name,
             cat,
             price,
@@ -1611,6 +1744,7 @@
   <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--bd);padding-bottom:8px;margin-bottom:8px"><b style="color:var(--pk)">${esc(o.id)}</b><span class="mu">${new Date(o.createdAt).toLocaleString('id-ID')}</span></div>
   <div><b>Pelanggan:</b> ${esc(o.customer?.name || '-')}</div><div><b>WhatsApp:</b> ${esc(o.customer?.phone || '-')}</div>
   <div><b>Tipe:</b> ${o.fulfillment === 'dine-in' ? 'Makan di tempat' : 'Bawa pulang'}</div><div><b>Bayar:</b> ${esc(o.paymentMethod || 'QRIS')} (${o.paymentStatus === 'paid' ? 'LUNAS' : 'MENUNGGU'})</div>
+  <div><b>Bayar:</b> ${esc(o.paymentMethod || 'QRIS')} (${o.paymentStatus === 'paid' ? 'LUNAS' : 'MENUNGGU'})</div>
   <div><b>Olsera:</b> ${o.status === 'synced' ? 'Tersinkron ✓' : esc(o.syncError || 'Pending')}</div>
   <div style="border-top:1px dashed var(--bd);margin-top:10px;padding-top:8px">${(o.items || []).map((i) => `<div style="display:flex;justify-content:space-between"><span>${i.qty}x ${esc(i.name)}</span><span>${fmt(i.price * i.qty)}</span></div>`).join('')}</div>
   ${o.discount > 0 ? `<div style="display:flex;justify-content:space-between;color:var(--ok)"><span>Diskon (${esc(o.promoCode || 'VOUCHER')})</span><span>- ${fmt(o.discount)}</span></div>` : ''}
