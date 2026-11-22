@@ -480,6 +480,77 @@
       transform: none;
     }
 
+    /* Banner Jam Operasional & Status Buka/Tutup Toko */
+    .store-status-banner {
+      background: var(--cream-card);
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 20px;
+      transition: all .2s ease;
+      position: sticky;
+      top: 74px;
+      z-index: 46;
+    }
+
+    .store-status-banner.closed {
+      background: #FDEDED;
+      border-color: rgba(201, 92, 92, 0.35);
+    }
+
+    .store-status-banner.open-banner {
+      background: #F0F6EE;
+      border-color: rgba(95, 138, 99, 0.25);
+    }
+
+    .store-banner-inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 0.86rem;
+      text-align: center;
+      flex-wrap: wrap;
+    }
+
+    .store-status-banner.closed .store-banner-inner {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .store-status-banner.open-banner .store-banner-inner {
+      color: var(--pink-deep);
+      font-weight: 600;
+    }
+
+    .status-dot-pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .store-status-banner.closed .status-dot-pulse {
+      background: var(--danger);
+      box-shadow: 0 0 8px rgba(201, 92, 92, 0.6);
+    }
+
+    .store-status-banner.open-banner .status-dot-pulse {
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(95, 138, 99, 0.6);
+    }
+
+    @media (max-width: 640px) {
+      .store-status-banner {
+        top: calc(60px + env(safe-area-inset-top, 0px));
+        padding: 8px 14px;
+        font-size: 0.8rem;
+      }
+
+      .filter-section {
+        top: calc(96px + env(safe-area-inset-top, 0px)) !important;
+      }
+    }
+
     /* Cart Drawer */
     .drawer-backdrop {
       position: fixed;
@@ -1454,6 +1525,14 @@
     </div>
   </header>
 
+  <!-- Store Operating Hours Banner -->
+  <div class="store-status-banner open-banner" id="storeStatusBanner">
+    <div class="container store-banner-inner">
+      <span class="status-dot-pulse" id="storeStatusDot"></span>
+      <span id="storeStatusBannerText">Memeriksa status operasional toko...</span>
+    </div>
+  </div>
+
   <!-- Main Container -->
   <div class="container">
 
@@ -1687,11 +1766,12 @@
     let activeCategory = 'semua';
     let appliedPromo = null;
     let settings = { qrisImage: 'qris.svg', merchantName: 'RAMI COFFEE & EATERY', taxPercent: 10 };
+    let storeStatus = { open: true, reason: '', schedule: { openHour: 13, openMinute: 0, closeHour: 21, closeMinute: 0, scheduleText: '13:00 - 21:00 WIB' } };
     let currentFulfillment = 'dine-in';
     let qrisCountdownInterval = null;
 
-    // Menu dianggap ditutup jika admin mengatur available = false
-    const isClosed = p => !!p && (p.available === false || p.available === 'false' || p.available === 0);
+    // Menu dianggap ditutup jika admin mengatur available = false atau active = false
+    const isClosed = p => !!p && (p.available === false || p.available === 'false' || p.available === 0 || p.active === false || p.is_active === false);
 
     const fmt = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
@@ -1699,6 +1779,16 @@
     /* SYNC DATA DARI BACKEND                                        */
     /* ------------------------------------------------------------- */
     async function loadStorefrontData() {
+      try {
+        const stRes = await fetch(`${BACKEND_URL}/store-status?_=${Date.now()}`, { cache: 'no-store' });
+        if (stRes.ok) {
+          storeStatus = await stRes.json();
+          renderStoreBanner();
+        }
+      } catch (e) {
+        console.warn('Gagal memuat status operasional toko:', e);
+      }
+
       try {
         const pRes = await fetch(`${BACKEND_URL}/products?_=${Date.now()}`, { cache: 'no-store' });
         if (pRes.ok) {
@@ -1710,7 +1800,7 @@
           }
         }
       } catch (e) {
-        console.error('Gagal mengambil menu dari Supabase melalui backend:', e);
+        console.error('Gagal mengambil menu dari backend:', e);
       }
 
       try {
@@ -1728,6 +1818,20 @@
 
       renderMenu();
       renderCart();
+    }
+
+    function renderStoreBanner() {
+      const banner = document.getElementById('storeStatusBanner');
+      const text = document.getElementById('storeStatusBannerText');
+      if (!banner || !text) return;
+      if (storeStatus.open) {
+        banner.className = 'store-status-banner open-banner';
+        const sch = storeStatus.schedule?.scheduleText || `${String(storeStatus.schedule?.openHour ?? 13).padStart(2, '0')}:${String(storeStatus.schedule?.openMinute ?? 0).padStart(2, '0')} - ${String(storeStatus.schedule?.closeHour ?? 21).padStart(2, '0')}:${String(storeStatus.schedule?.closeMinute ?? 0).padStart(2, '0')} WIB`;
+        text.innerHTML = `<strong>Toko Sedang Buka</strong> &middot; Jam Operasional: ${sch}`;
+      } else {
+        banner.className = 'store-status-banner closed';
+        text.innerHTML = `⛔ <strong>Mohon maaf, Rami Coffee saat ini sedang TUTUP.</strong> (${storeStatus.reason || 'Buka pukul 13:00 - 21:00 WIB'}) &mdash; Anda tetap dapat melihat menu kami.`;
+      }
     }
 
     /* ------------------------------------------------------------- */
@@ -1760,6 +1864,8 @@
       filtered.forEach(p => {
         const card = document.createElement('div');
         const soldOut = isClosed(p); // ditutup di admin
+        const storeClosed = !storeStatus.open;
+        const isDisabled = soldOut || storeClosed;
         card.className = 'menu-card' + (soldOut ? ' sold-out' : '');
 
         let mediaContent = '';
@@ -1768,6 +1874,8 @@
         } else {
           mediaContent = `<span class="emoji-fallback">${p.icon || '☕'}</span>`;
         }
+
+        const buttonTooltip = storeClosed ? 'Toko sedang tutup (13:00 - 21:00 WIB)' : (soldOut ? 'Out of stock' : 'Tambah ke Keranjang');
 
         card.innerHTML = `
       <div class="card-image-wrap">
@@ -1780,7 +1888,7 @@
         <p class="card-desc">${p.desc || 'Diracik dengan bahan berkualitas tinggi dan kesegaran terbaik.'}</p>
         <div class="card-footer">
           <span class="card-price">${fmt(p.price)}</span>
-          <button class="btn-add-item" data-id="${p.id}" title="${soldOut ? 'Out of stock' : 'Tambah ke Keranjang'}" ${soldOut ? 'disabled' : ''}>+</button>
+          <button class="btn-add-item" data-id="${p.id}" title="${buttonTooltip}" ${isDisabled ? 'disabled' : ''}>+</button>
         </div>
       </div>
     `;
@@ -1815,8 +1923,15 @@
     /* CART & PROMO CODE LOGIC                                       */
     /* ------------------------------------------------------------- */
     function addToCart(id) {
+      if (!storeStatus.open) {
+        alert(`Mohon maaf, pemesanan belum bisa diproses karena toko sedang tutup.\n(${storeStatus.reason || 'Jam operasional: 13:00 - 21:00 WIB'})`);
+        return;
+      }
       const prod = products.find(p => p.id === id);
-      if (isClosed(prod)) return; // Out of stock
+      if (isClosed(prod)) {
+        alert('Mohon maaf, menu ini sedang Out of stock.');
+        return;
+      }
       cart[id] = (cart[id] || 0) + 1;
       renderCart();
 
@@ -1888,7 +2003,14 @@
       const totalCount = items.reduce((sum, i) => sum + i.qty, 0);
 
       document.getElementById('cartCountBadge').textContent = totalCount;
-      document.getElementById('btnOpenCheckoutModal').disabled = totalCount === 0;
+      const checkoutBtn = document.getElementById('btnOpenCheckoutModal');
+      if (!storeStatus.open) {
+        checkoutBtn.disabled = true;
+        checkoutBtn.textContent = 'Toko Sedang Tutup';
+      } else {
+        checkoutBtn.disabled = totalCount === 0;
+        checkoutBtn.textContent = 'Lanjut ke Pembayaran';
+      }
 
       const itemsListEl = document.getElementById('cartItemsList');
 
@@ -2057,14 +2179,22 @@
     const checkoutMiniReceipt = document.getElementById('checkoutMiniReceipt');
 
     btnOpenCheckoutModal.onclick = async () => {
-      // Ambil status menu terbaru, buang item yang baru saja ditutup admin
+      if (!storeStatus.open) {
+        alert(`Mohon maaf, pemesanan belum bisa diproses karena toko sedang tutup.\n(${storeStatus.reason || 'Jam operasional: 13:00 - 21:00 WIB'})`);
+        return;
+      }
+      // Ambil status menu & toko terbaru, buang item yang baru saja ditutup admin
       await loadStorefrontData();
+      if (!storeStatus.open) {
+        alert(`Mohon maaf, toko baru saja ditutup.\n(${storeStatus.reason || 'Jam operasional: 13:00 - 21:00 WIB'})`);
+        return;
+      }
       const closed = Object.keys(cart).filter(id => {
         const prod = products.find(p => p.id === id);
         return isClosed(prod);
       });
       if (closed.length) {
-        const names = closed.map(id => products.find(p => p.id === id).name);
+        const names = closed.map(id => products.find(p => p.id === id)?.name || id);
         closed.forEach(id => delete cart[id]);
         renderCart();
         alert('Maaf, menu berikut sedang Out of stock dan dihapus dari keranjang:\n- ' + names.join('\n- '));
@@ -2136,6 +2266,10 @@
     let pendingOrderPayload = null;
 
     document.getElementById('btnProceedPayment').onclick = () => {
+      if (!storeStatus.open) {
+        alert(`Mohon maaf, pemesanan belum bisa diproses karena toko sedang tutup.\n(${storeStatus.reason || 'Jam operasional: 13:00 - 21:00 WIB'})`);
+        return;
+      }
       const name = document.getElementById('inputCustName').value.trim();
       const phone = document.getElementById('inputCustPhone').value.trim();
       const tableNo = document.getElementById('inputTableNo').value.trim();
@@ -2518,8 +2652,8 @@
       'DOMContentLoaded',
       () => {
         loadStorefrontData();
-        // Segarkan status Out of stock tanpa reload halaman
-        setInterval(() => { if (!document.hidden) loadStorefrontData(); }, 30000);
+        // Segarkan status toko & out of stock setiap 15 detik tanpa reload halaman
+        setInterval(() => { if (!document.hidden) loadStorefrontData(); }, 15000);
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) loadStorefrontData();
         });

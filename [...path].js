@@ -21,7 +21,7 @@ const ADMIN_PIN = process.env.ADMIN_PIN || '220901';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'rami-coffee-default-secret-ganti-kalau-bisa';
 const ON_VERCEL = Boolean(process.env.VERCEL);
 const STORE_NAME = 'Rami Coffee & Eatery';
-const OLSERA_STORE_ID = String(process.env.OLSERA_STORE_ID || '773'); // Olsera store 773
+const OLSERA_STORE_ID = String(process.env.OLSERA_STORE_ID || '733'); // Olsera store 733
 
 const SEED_PRODUCTS = [
     { id: 'p1', cat: 'kopi', name: 'Kopi Susu Rami', desc: 'Espresso house-blend, gula aren, susu segar.', price: 22000, icon: '☕', image: '', olsera_sku: 'RAMI-KOPISUSU' },
@@ -49,6 +49,12 @@ const SEED_SETTINGS = {
     merchantName: 'RAMI COFFEE & EATERY',
     outletId: OLSERA_STORE_ID,
     taxPercent: 10,
+    storeOpen: true,
+    openHour: 13,
+    openMinute: 0,
+    closeHour: 21,
+    closeMinute: 0,
+    autoSchedule: true,
 };
 
 /* ------------------------------------------------------------------ */
@@ -387,10 +393,80 @@ const STORAGE_MODE = typeof db.query === 'function' ? 'supabase' : 'memory';
 
 
 
+function calculateStoreStatus(settings) {
+    const s = settings || {};
+    const autoSchedule = s.autoSchedule !== false;
+    const storeOpen = s.storeOpen !== false;
+    let open = storeOpen;
+
+    const openHour = Number(s.openHour ?? 13);
+    const openMinute = Number(s.openMinute ?? 0);
+    const closeHour = Number(s.closeHour ?? 21);
+    const closeMinute = Number(s.closeMinute ?? 0);
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const schText = `${pad(openHour)}:${pad(openMinute)} - ${pad(closeHour)}:${pad(closeMinute)} WIB`;
+    let reason = storeOpen ? 'Dibuka manual oleh admin' : 'Ditutup manual oleh admin';
+
+    if (autoSchedule) {
+        // Hitung waktu WIB (UTC+7)
+        const now = new Date();
+        const wib = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+        const hh = wib.getUTCHours();
+        const mm = wib.getUTCMinutes();
+        const currentMinutes = hh * 60 + mm;
+        const openMinutes = openHour * 60 + openMinute;
+        const closeMinutes = closeHour * 60 + closeMinute;
+
+        let withinSchedule = false;
+        if (openMinutes <= closeMinutes) {
+            withinSchedule = currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+        } else {
+            withinSchedule = currentMinutes >= openMinutes || currentMinutes < closeMinutes;
+        }
+
+        if (!storeOpen) {
+            open = false;
+            reason = `Ditutup manual oleh admin (Jadwal: ${schText})`;
+        } else {
+            open = withinSchedule;
+            reason = withinSchedule
+                ? `Buka sesuai jadwal operasional (${schText})`
+                : `Di luar jam operasional (${schText})`;
+        }
+    }
+
+    return {
+        open,
+        reason,
+        schedule: {
+            openHour,
+            openMinute,
+            closeHour,
+            closeMinute,
+            scheduleText: schText,
+        },
+        autoSchedule,
+        manualOverride: storeOpen,
+    };
+}
+
+api.get('/store-status', wrap(async (req, res) => {
+    const s = withOutlet(await db.get(KEY.settings)) || {};
+    res.json(calculateStoreStatus(s));
+}));
+
 api.get('/products', wrap(async (req, res) => {
+    const list = await listAll(KEY.products);
+    const normalized = list.map((p) => ({
+        ...p,
+        available: p.available !== false,
+        active: p.available !== false,
+        is_active: p.available !== false,
+    }));
     res.json({
         storage: STORAGE_MODE,
-        products: (await listAll(KEY.products)).sort((a, b) => a.name.localeCompare(b.name)),
+        products: normalized.sort((a, b) => a.name.localeCompare(b.name)),
     });
 }));
 
@@ -430,11 +506,21 @@ api.post('/orders', wrap(async (req, res) => {
     if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'items tidak boleh kosong' });
     if (typeof total !== 'number' || total <= 0) return res.status(400).json({ error: 'total tidak valid' });
 
+    // Periksa status buka/tutup toko
+    const s = withOutlet(await db.get(KEY.settings)) || {};
+    const storeStatus = calculateStoreStatus(s);
+    if (!storeStatus.open) {
+        return res.status(403).json({
+            error: `Mohon maaf, pemesanan belum bisa diproses karena toko sedang tutup. (${storeStatus.reason})`,
+            storeClosed: true
+        });
+    }
+
     // Tolak pesanan berisi menu yang sedang ditutup (Out of stock)
     const catalog = await listAll(KEY.products);
     const closedItems = items
         .map((i) => catalog.find((p) => p.id === i.id))
-        .filter((p) => p && p.available === false);
+        .filter((p) => p && (p.available === false || p.active === false || p.is_active === false));
     if (closedItems.length) {
         return res.status(409).json({ error: `Menu sedang Out of stock: ${closedItems.map((p) => p.name).join(', ')}` });
     }
@@ -461,9 +547,11 @@ api.post('/products', wrap(async (req, res) => {
     const { name, price } = req.body || {};
     if (!name || Number.isNaN(Number(price)) || Number(price) < 0) return res.status(400).json({ error: 'Nama/harga tidak valid' });
     const id = req.body.id || `p${Date.now().toString(36)}`;
-    const product = { ...req.body, id, price: Number(price) };
+    const ex = (await db.hget(KEY.products, id)) || {};
+    const available = req.body.available !== undefined ? Boolean(req.body.available) : (ex.available !== false);
+    const product = { ...ex, ...req.body, id, price: Number(price), available, active: available, is_active: available };
     await db.hset(KEY.products, { [id]: product });
-    await addLog(`Produk "${product.name}" disimpan`, 'ok');
+    await addLog(`Produk "${product.name}" disimpan (${available ? 'Buka' : 'Tutup'})`, 'ok');
     res.status(201).json({ ok: true, product });
 }));
 
